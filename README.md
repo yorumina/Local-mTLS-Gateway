@@ -16,6 +16,16 @@ OpenCode
 
 `AGENTS.md` 是本資料夾的強制工作契約；`npm run check` 會檢查關鍵安全不變條件。
 
+管理介面是獨立 process，不會擴大 proxy 的路由：
+
+```text
+Browser -> http://127.0.0.1:8790 -> Yorumina Sidecar Control
+                                      -> safe settings / diagnostics
+                                      -> managed sidecar lifecycle
+```
+
+Proxy 固定使用 `127.0.0.1:8787`，Control Panel 固定使用 `127.0.0.1:8790`。兩者都不接受 LAN 或公開介面連線。
+
 ## 安裝與執行
 
 需求：Node.js 20.11 以上。本專案沒有第三方 runtime dependency。
@@ -74,10 +84,24 @@ http://127.0.0.1:8787/v1
 
 ```powershell
 npm run check
+npm run test:config
+npm run test:control
 npm run smoke
 ```
 
 smoke test 只會啟動 loopback mock gateway，使用假 key，並以 `SIDECAR_TEST_MODE=true` 暫時跳過真實 client identity。它能驗證 API-key gate、路由白名單、request forwarding、JSON response 與 SSE response；它不能證明 Cloudflare mTLS、遠端 gateway 或 Qwen3.6 已可用。
+
+## Yorumina Sidecar Control
+
+先完成 `.env.local` 的本機 secret 設定，再執行 `npm run control`，然後開啟 `http://127.0.0.1:8790`。介面包含 Overview、Connection、mTLS Identity、Limits、OpenCode、Diagnostics 與 Settings / About。
+
+介面可以修改上游 HTTPS URL、本機 proxy port、request body 上限、upstream timeout、PEM/PFX identity 類型與外部檔案路徑，以及 OpenCode provider/model 顯示設定。
+
+非敏感設定寫入 gitignored 的 `.sidecar.local.json`。`SIDECAR_API_KEY`、`UPSTREAM_API_KEY` 與 `MTLS_PASSPHRASE` 仍保存在 environment / `.env.local`，介面只顯示 `Configured` 或 `Not configured`；更新 secret 是 write-only，瀏覽器、diff、log 與 API response 都不會取得原值。
+
+`Apply & Restart` 會依序驗證設定、顯示安全 diff、寫入設定、執行 policy check、重新啟動受管理的 sidecar，再檢查 `/healthz`。若目前的 sidecar 不是由 Control Panel 啟動，介面不會強制終止它，而會明確顯示需要重新啟動。套用失敗會回復前一版設定。
+
+Diagnostics 將 Configuration validation、Security policy check、Local sidecar health、loopback mock smoke test 與 real upstream HTTPS / mTLS diagnostic 分開顯示。Smoke test 不代表 Cloudflare mTLS、真實 gateway 或 Qwen 已驗證；只有 real upstream diagnostic 實際成功時，才能表示該次遠端 HTTPS/mTLS 連線成功。
 
 ## Windows 登入自動啟動與桌面捷徑
 
@@ -87,7 +111,12 @@ smoke test 只會啟動 loopback mock gateway，使用假 key，並以 `SIDECAR_
 .\install-windows-integration.ps1
 ```
 
-它會建立目前使用者的 `OpenCode mTLS Sidecar` 登入排程，只在背景啟動 loopback sidecar；也會在桌面建立 `OpenCode GB10` 捷徑。OpenCode Desktop 不會隨登入自動開啟，只有點擊桌面捷徑時才開啟。排程與捷徑都不含 API key、PFX passphrase或憑證內容。
+它會建立目前使用者的 `OpenCode mTLS Sidecar` 登入排程，登入後在背景啟動 Control Panel 與它管理的 loopback sidecar。桌面會建立：
+
+- `OpenCode GB10`：確認 sidecar 正常後按需開啟 OpenCode Desktop。
+- `Yorumina Sidecar Control`：按一下即可啟動或開啟 `http://127.0.0.1:8790`。
+
+OpenCode Desktop 不會隨登入自動開啟。排程與捷徑都不含 API key、PFX passphrase 或憑證內容。
 
 ## 安全界線
 

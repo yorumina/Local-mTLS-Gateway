@@ -394,6 +394,9 @@ function shutdown(signal) {
 
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
+process.on('message', (message) => {
+  if (message?.type === 'shutdown') shutdown('IPC');
+});
 
 server.listen(config.port, config.host, () => {
   const address = server.address();

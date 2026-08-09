@@ -1,13 +1,15 @@
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '.')).Path
-$runScript = Join-Path $projectRoot 'run.ps1'
+$runScript = Join-Path $projectRoot 'run-control-panel.ps1'
 $desktopLaunchScript = Join-Path $projectRoot 'start-opencode-desktop.ps1'
+$controlPanelLaunchScript = Join-Path $projectRoot 'open-control-panel.ps1'
 $openCodeExe = Join-Path $env:LOCALAPPDATA 'Programs\@opencode-aidesktop\OpenCode.exe'
 $taskName = 'OpenCode mTLS Sidecar'
 $shortcutName = 'OpenCode GB10.lnk'
+$controlPanelShortcutName = 'Yorumina Sidecar Control.lnk'
 
-foreach ($requiredPath in @($runScript, $desktopLaunchScript, $openCodeExe)) {
+foreach ($requiredPath in @($runScript, $desktopLaunchScript, $controlPanelLaunchScript, $openCodeExe)) {
   if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
     throw "Required file is missing: $requiredPath"
   }
@@ -15,11 +17,6 @@ foreach ($requiredPath in @($runScript, $desktopLaunchScript, $openCodeExe)) {
 
 if (-not (Test-Path -LiteralPath (Join-Path $projectRoot '.env.local') -PathType Leaf)) {
   throw 'Missing .env.local. Configure it locally before installing Windows integration.'
-}
-
-$existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-if ($existingTask) {
-  throw "Scheduled task already exists: $taskName. It was not overwritten."
 }
 
 $powerShellExe = Join-Path $PSHOME 'powershell.exe'
@@ -43,19 +40,15 @@ $taskSettings = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask `
   -TaskName $taskName `
-  -Description 'Starts the loopback-only OpenCode GB10 mTLS sidecar after user logon.' `
+  -Description 'Starts the loopback-only Control Panel and managed GB10 mTLS sidecar after user logon.' `
   -Action $taskAction `
   -Trigger $taskTrigger `
   -Principal $taskPrincipal `
-  -Settings $taskSettings | Out-Null
+  -Settings $taskSettings `
+  -Force | Out-Null
 
 $desktopPath = [Environment]::GetFolderPath('Desktop')
 $shortcutPath = Join-Path $desktopPath $shortcutName
-if (Test-Path -LiteralPath $shortcutPath) {
-  Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
-  throw "Desktop shortcut already exists: $shortcutPath. The newly created task was rolled back."
-}
-
 $quotedDesktopScript = '"' + $desktopLaunchScript + '"'
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
@@ -66,7 +59,18 @@ $shortcut.IconLocation = "$openCodeExe,0"
 $shortcut.Description = 'Start OpenCode Desktop with the local GB10 mTLS sidecar'
 $shortcut.Save()
 
+$controlPanelShortcutPath = Join-Path $desktopPath $controlPanelShortcutName
+$quotedControlPanelScript = '"' + $controlPanelLaunchScript + '"'
+$controlShortcut = $shell.CreateShortcut($controlPanelShortcutPath)
+$controlShortcut.TargetPath = $powerShellExe
+$controlShortcut.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $quotedControlPanelScript"
+$controlShortcut.WorkingDirectory = $projectRoot
+$controlShortcut.IconLocation = "$openCodeExe,0"
+$controlShortcut.Description = 'Open the local Yorumina Sidecar Control Panel'
+$controlShortcut.Save()
+
 Start-ScheduledTask -TaskName $taskName
 
 Write-Output "Scheduled task installed: $taskName"
 Write-Output "Desktop shortcut installed: $shortcutPath"
+Write-Output "Control Panel shortcut installed: $controlPanelShortcutPath"

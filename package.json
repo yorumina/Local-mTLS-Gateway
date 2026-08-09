@@ -9,6 +9,10 @@
   },
   "scripts": {
     "start": "node src/server.mjs",
+    "control": "node --env-file=.env.local control-panel/server.mjs",
+    "control:managed": "node --env-file=.env.local scripts/start-control-panel.mjs",
+    "test:config": "node scripts/config-test.mjs",
+    "test:control": "node scripts/control-panel-test.mjs",
     "check": "node scripts/policy-check.mjs",
     "smoke": "node scripts/smoke-test.mjs"
   }
