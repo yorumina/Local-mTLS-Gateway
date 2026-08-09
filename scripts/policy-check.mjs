@@ -60,4 +60,3 @@ try {
   console.error(`policy-check: failed: ${error.message}`);
   process.exitCode = 1;
 }
-

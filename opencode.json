@@ -1,20 +1,23 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "model": "yorumina/qwen3.6",
+  "model": "gb10/gb10-private-llm",
   "provider": {
-    "yorumina": {
+    "gb10": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "Yorumina mTLS sidecar",
+      "name": "GB10 Private LLM",
       "options": {
         "baseURL": "http://127.0.0.1:8787/v1",
         "apiKey": "{env:SIDECAR_API_KEY}"
       },
       "models": {
-        "qwen3.6": {
-          "name": "Qwen3.6"
+        "gb10-private-llm": {
+          "name": "GB10 Private LLM",
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          }
         }
       }
     }
   }
 }
-

@@ -13,4 +13,3 @@
     "smoke": "node scripts/smoke-test.mjs"
   }
 }
-

@@ -8,5 +8,22 @@ if (-not (Test-Path -LiteralPath '.env.local')) {
 }
 
 npm run check
-node --env-file=.env.local src/server.mjs
 
+try {
+  $ready = Invoke-WebRequest -UseBasicParsing -Uri 'http://127.0.0.1:8787/readyz' -TimeoutSec 2
+  if ($ready.StatusCode -eq 200) {
+    return
+  }
+}
+catch {
+  # No ready loopback sidecar is running; start it below.
+}
+
+if ([string]::IsNullOrWhiteSpace($env:NODE_OPTIONS)) {
+  $env:NODE_OPTIONS = '--use-system-ca'
+}
+elseif ($env:NODE_OPTIONS -notmatch '(^|\s)--use-system-ca(\s|$)') {
+  $env:NODE_OPTIONS = "$($env:NODE_OPTIONS) --use-system-ca"
+}
+
+node --env-file=.env.local src/server.mjs

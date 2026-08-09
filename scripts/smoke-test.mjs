@@ -173,6 +173,25 @@ async function run() {
   assert(unauthorized.status === 401, 'missing API key should be rejected');
   assert(observed.length === 0, 'unauthorized request must not reach the gateway');
 
+  const preflight = await request(sidecarPort, '/v1/chat/completions', {
+    method: 'OPTIONS',
+    key: null,
+    headers: {
+      origin: 'http://localhost:5173',
+      'access-control-request-headers': 'authorization, content-type',
+      'access-control-request-method': 'POST',
+    },
+  });
+  assert(preflight.status === 204, 'local AIRI CORS preflight should succeed');
+  assert(preflight.headers.get('access-control-allow-origin') === 'http://localhost:5173', 'CORS origin was not echoed');
+
+  const rejectedPreflight = await request(sidecarPort, '/v1/chat/completions', {
+    method: 'OPTIONS',
+    key: null,
+    headers: { origin: 'https://evil.example', 'access-control-request-method': 'POST' },
+  });
+  assert(rejectedPreflight.status === 403, 'non-local CORS origin should be rejected');
+
   const models = await request(sidecarPort, '/v1/models');
   assert(models.status === 200 && models.body.includes('Qwen3.6-smoke'), 'models response was not proxied');
   assert(observed.at(-1)?.authorization === `Bearer ${sidecarKey}`, 'inbound bearer was not forwarded');
@@ -212,4 +231,3 @@ try {
   await stopChild(sidecarProcess);
   await closeServer(mockServer);
 }
-

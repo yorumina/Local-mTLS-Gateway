@@ -86,4 +86,3 @@ try {
 } finally {
   stopSidecar();
 }
-

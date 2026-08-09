@@ -35,6 +35,8 @@ const FORWARD_REQUEST_HEADERS = [
   'openai-beta',
   'x-client-request-id',
 ];
+const CORS_ALLOWED_HEADERS = 'Authorization, Content-Type, OpenAI-Beta, X-Client-Request-Id';
+const CORS_ALLOWED_METHODS = 'GET, POST, OPTIONS';
 
 class HttpError extends Error {
   constructor(statusCode, code, message) {
@@ -76,6 +78,41 @@ function sendJson(response, statusCode, payload, extraHeaders = {}) {
     ...extraHeaders,
   });
   response.end(body);
+}
+
+function isAllowedCorsOrigin(origin) {
+  if (origin === 'null') return true;
+
+  try {
+    const parsed = new URL(origin);
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:')
+      && ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function corsHeadersFor(request) {
+  const origin = request.headers.origin;
+  if (typeof origin !== 'string' || origin.length === 0) return {};
+  if (!isAllowedCorsOrigin(origin)) return undefined;
+
+  return {
+    'access-control-allow-headers': CORS_ALLOWED_HEADERS,
+    'access-control-allow-methods': CORS_ALLOWED_METHODS,
+    'access-control-allow-origin': origin,
+    'access-control-expose-headers': 'retry-after, x-request-id',
+    'access-control-max-age': '600',
+    vary: 'Origin',
+  };
+}
+
+function sendCorsNoContent(response, corsHeaders) {
+  response.writeHead(204, {
+    ...corsHeaders,
+    'content-length': '0',
+  });
+  response.end();
 }
 
 function constantTimeEqual(left, right) {
@@ -286,6 +323,10 @@ async function handleRequest(request, response) {
       ...(errorCode ? { errorCode } : {}),
     });
   };
+  const corsHeaders = corsHeadersFor(request);
+  if (corsHeaders) {
+    for (const [name, value] of Object.entries(corsHeaders)) response.setHeader(name, value);
+  }
   response.once('finish', () => finishLog(response.statusCode));
   response.once('close', () => {
     if (!response.writableFinished) finishLog(response.statusCode || 499, 'client_closed');
@@ -303,6 +344,11 @@ async function handleRequest(request, response) {
 
     const allowedMethods = ALLOWED_ROUTES.get(parsedUrl.pathname);
     if (!allowedMethods) throw new HttpError(404, 'not_found', 'route not found');
+    if (request.method === 'OPTIONS') {
+      if (corsHeaders === undefined) throw new HttpError(403, 'cors_origin_rejected', 'origin is not allowed');
+      sendCorsNoContent(response, corsHeaders);
+      return;
+    }
     if (!allowedMethods.has(request.method)) {
       throw new HttpError(405, 'method_not_allowed', 'method is not allowed for this route');
     }
@@ -363,4 +409,3 @@ server.on('error', (error) => {
   log('server_error', { errorCode: error?.code ?? 'server_error' });
   process.exitCode = 1;
 });
-

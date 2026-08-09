@@ -47,4 +47,3 @@
 ## 4. 完成定義
 
 只有在 `npm run check` 與 `npm run smoke` 都通過，且未引入任何 secret、非 loopback listener、TLS bypass 或未授權路由時，才可宣稱本資料夾的本機實作完成。這不代表遠端 Cloudflare mTLS、gateway routing 或 llama.cpp/Qwen3.6 已完成部署。
-

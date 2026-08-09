@@ -9,4 +9,3 @@ if (-not (Test-Path -LiteralPath '.env.local')) {
 
 npm run check
 node --env-file=.env.local scripts/start-opencode.mjs @args
-

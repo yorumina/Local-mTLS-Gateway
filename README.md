@@ -43,6 +43,7 @@ OpenCode
 
    預設 listener 是 `127.0.0.1:8787`。啟動失敗通常表示 API key、HTTPS 上游或 client identity 尚未完整設定；這是預期的 fail-closed 行為。
 
+
 ## OpenCode 端設定
 
 把 provider 的 base URL 設為：
@@ -78,10 +79,19 @@ npm run smoke
 
 smoke test 只會啟動 loopback mock gateway，使用假 key，並以 `SIDECAR_TEST_MODE=true` 暫時跳過真實 client identity。它能驗證 API-key gate、路由白名單、request forwarding、JSON response 與 SSE response；它不能證明 Cloudflare mTLS、遠端 gateway 或 Qwen3.6 已可用。
 
+## Windows 登入自動啟動與桌面捷徑
+
+執行一次：
+
+```powershell
+.\install-windows-integration.ps1
+```
+
+它會建立目前使用者的 `OpenCode mTLS Sidecar` 登入排程，只在背景啟動 loopback sidecar；也會在桌面建立 `OpenCode GB10` 捷徑。OpenCode Desktop 不會隨登入自動開啟，只有點擊桌面捷徑時才開啟。排程與捷徑都不含 API key、PFX passphrase或憑證內容。
+
 ## 安全界線
 
 - 不支援 HTTP 上游，除非是 smoke test 明確啟用的 loopback mock。
 - 不接受非 `127.0.0.1` bind。
 - 不把 authorization、cookie、body 或 private key 寫入 log。
 - 不會自動部署或修改 Cloudflare、DNS、gateway、llama.cpp、模型或防火牆。
-
