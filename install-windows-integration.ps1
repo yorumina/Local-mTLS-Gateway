@@ -6,8 +6,8 @@ $desktopLaunchScript = Join-Path $projectRoot 'start-opencode-desktop.ps1'
 $controlPanelLaunchScript = Join-Path $projectRoot 'open-control-panel.ps1'
 $openCodeExe = Join-Path $env:LOCALAPPDATA 'Programs\@opencode-aidesktop\OpenCode.exe'
 $taskName = 'OpenCode mTLS Sidecar'
-$shortcutName = 'OpenCode GB10.lnk'
-$controlPanelShortcutName = 'Yorumina Sidecar Control.lnk'
+$shortcutName = 'OpenCode mTLS Sidecar.lnk'
+$controlPanelShortcutName = 'OpenCode mTLS Sidecar Control Panel.lnk'
 
 foreach ($requiredPath in @($runScript, $desktopLaunchScript, $controlPanelLaunchScript, $openCodeExe)) {
   if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
@@ -40,7 +40,7 @@ $taskSettings = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask `
   -TaskName $taskName `
-  -Description 'Starts the loopback-only Control Panel and managed GB10 mTLS sidecar after user logon.' `
+  -Description 'Starts the loopback-only OpenCode mTLS Sidecar Control Panel after user logon.' `
   -Action $taskAction `
   -Trigger $taskTrigger `
   -Principal $taskPrincipal `
@@ -56,7 +56,7 @@ $shortcut.TargetPath = $powerShellExe
 $shortcut.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $quotedDesktopScript"
 $shortcut.WorkingDirectory = $projectRoot
 $shortcut.IconLocation = "$openCodeExe,0"
-$shortcut.Description = 'Start OpenCode Desktop with the local GB10 mTLS sidecar'
+$shortcut.Description = 'Start OpenCode Desktop with the local OpenCode mTLS Sidecar'
 $shortcut.Save()
 
 $controlPanelShortcutPath = Join-Path $desktopPath $controlPanelShortcutName
@@ -66,7 +66,7 @@ $controlShortcut.TargetPath = $powerShellExe
 $controlShortcut.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $quotedControlPanelScript"
 $controlShortcut.WorkingDirectory = $projectRoot
 $controlShortcut.IconLocation = "$openCodeExe,0"
-$controlShortcut.Description = 'Open the local Yorumina Sidecar Control Panel'
+$controlShortcut.Description = 'Open the local OpenCode mTLS Sidecar Control Panel'
 $controlShortcut.Save()
 
 Start-ScheduledTask -TaskName $taskName
@@ -74,3 +74,4 @@ Start-ScheduledTask -TaskName $taskName
 Write-Output "Scheduled task installed: $taskName"
 Write-Output "Desktop shortcut installed: $shortcutPath"
 Write-Output "Control Panel shortcut installed: $controlPanelShortcutPath"
+
