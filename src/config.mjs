@@ -110,4 +110,3 @@ export function loadConfig() {
     settingsFile: process.env.SIDECAR_SETTINGS_FILE || SETTINGS_FILE,
   });
 }
-
