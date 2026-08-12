@@ -74,4 +74,3 @@ Start-ScheduledTask -TaskName $taskName
 Write-Output "Scheduled task installed: $taskName"
 Write-Output "Desktop shortcut installed: $shortcutPath"
 Write-Output "Control Panel shortcut installed: $controlPanelShortcutPath"
-
