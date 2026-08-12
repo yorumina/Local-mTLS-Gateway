@@ -1,5 +1,12 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
+import { SECRET_NAMES } from '../../src/settings-store.mjs';
+
+export function buildManagedSidecarEnvironment(baseEnv, settingsFile) {
+  const childEnv = { ...baseEnv, SIDECAR_SETTINGS_FILE: settingsFile };
+  for (const name of SECRET_NAMES) delete childEnv[name];
+  return childEnv;
+}
 
 function waitForExit(child, timeoutMs) {
   return new Promise((resolve, reject) => {
@@ -55,7 +62,7 @@ export class SidecarProcessManager {
     args.push(path.join(this.projectRoot, 'src', 'server.mjs'));
     this.child = spawn(process.execPath, args, {
       cwd: this.projectRoot,
-      env: { ...process.env, SIDECAR_SETTINGS_FILE: this.settingsFile },
+      env: buildManagedSidecarEnvironment(process.env, this.settingsFile),
       stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
       windowsHide: true,
     });
@@ -79,3 +86,4 @@ export class SidecarProcessManager {
     return { managed: true, restarted: true, restartRequired: false };
   }
 }
+
