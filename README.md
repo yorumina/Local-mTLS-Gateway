@@ -124,4 +124,3 @@ OpenCode Desktop 不會隨登入自動開啟。排程與捷徑都不含 API key�
 - 不接受非 `127.0.0.1` bind。
 - 不把 authorization、cookie、body 或 private key 寫入 log。
 - 不會自動部署或修改 Cloudflare、DNS、gateway、llama.cpp、模型或防火牆。
-
