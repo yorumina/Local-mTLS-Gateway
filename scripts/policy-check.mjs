@@ -38,6 +38,7 @@ function assert(condition, message) {
 
 try {
   const agent = read('AGENTS.md');
+  const envExample = read('.env.example');
   const gitignore = read('.gitignore');
   const config = read('src/config.mjs');
   const validation = read('src/config-validation.mjs');
@@ -59,6 +60,8 @@ try {
   assert(gitignore.includes('*.key'), 'private key files must be ignored');
   assert(gitignore.includes('*.pfx'), 'PFX files must be ignored');
   assert(gitignore.includes('.sidecar.local.json'), 'safe local settings must be ignored');
+  assert(/^SIDECAR_API_KEY=$/m.test(envExample), 'example sidecar API key must be empty');
+  assert(config.includes('PLACEHOLDER_TOKENS') && config.includes('must not use a placeholder value'), 'placeholder API-key rejection missing');
   assert(validation.includes("upstreamBaseUrl: 'https://llm.yorumina.com'"), 'default upstream changed');
   assert(validation.includes("host: '127.0.0.1'"), 'non-loopback bind guard missing');
   assert(validation.includes("input?.host !== undefined && input.host !== '127.0.0.1'"), 'host lock validation missing');
@@ -80,6 +83,7 @@ try {
   assert(controlServer.includes('NODE_TLS_REJECT_UNAUTHORIZED=0') === false, 'TLS bypass token found in Control Panel');
   assert(controlServer.includes('rejectUnauthorized: false') === false, 'insecure TLS found in Control Panel');
   assert(processManager.includes('0.0.0.0') === false, 'non-loopback listener token found in process manager');
+  assert(processManager.includes('SECRET_NAMES') && processManager.includes('delete childEnv[name]'), 'managed sidecar may inherit stale secrets');
   assert(diagnostics.includes('0.0.0.0') === false, 'non-loopback listener token found in diagnostics');
   assert(controlHtml.includes('SIDECAR_API_KEY') && controlHtml.includes('Write-only') && controlApp.includes("'Configured ✓'"), 'write-only secret status UI missing');
   assert(packageJson.scripts?.check === 'node scripts/policy-check.mjs', 'npm check script changed');
@@ -93,3 +97,4 @@ try {
   console.error(`policy-check: failed: ${error.message}`);
   process.exitCode = 1;
 }
+
