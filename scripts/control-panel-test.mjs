@@ -153,4 +153,3 @@ try {
   await new Promise((resolve) => control.server.close(resolve));
   fs.rmSync(temporaryRoot, { recursive: true, force: true });
 }
-
