@@ -86,4 +86,3 @@ export class SidecarProcessManager {
     return { managed: true, restarted: true, restartRequired: false };
   }
 }
-
