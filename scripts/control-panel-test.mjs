@@ -4,6 +4,7 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { createControlPanel } from '../control-panel/server.mjs';
+import { buildManagedSidecarEnvironment } from '../control-panel/lib/process-manager.mjs';
 import { writeSettings } from '../src/settings-store.mjs';
 
 const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'sidecar-control-test-'));
@@ -24,6 +25,18 @@ const baseConfig = {
 };
 writeSettings(baseConfig, { filePath: settingsFile });
 fs.writeFileSync(envFile, `SIDECAR_API_KEY=${fakeSecret}\n`, { mode: 0o600 });
+
+const managedEnvironment = buildManagedSidecarEnvironment({
+  PATH: 'test-path',
+  SIDECAR_API_KEY: 'stale-sidecar-key',
+  UPSTREAM_API_KEY: 'stale-upstream-key',
+  MTLS_PASSPHRASE: 'stale-passphrase',
+}, settingsFile);
+assert.equal(managedEnvironment.PATH, 'test-path', 'non-secret environment was not preserved');
+assert.equal(managedEnvironment.SIDECAR_SETTINGS_FILE, settingsFile, 'settings path was not provided');
+assert.equal(Object.hasOwn(managedEnvironment, 'SIDECAR_API_KEY'), false, 'stale sidecar key was inherited');
+assert.equal(Object.hasOwn(managedEnvironment, 'UPSTREAM_API_KEY'), false, 'stale upstream key was inherited');
+assert.equal(Object.hasOwn(managedEnvironment, 'MTLS_PASSPHRASE'), false, 'stale passphrase was inherited');
 
 let policyPasses = true;
 const fakeManager = {
@@ -135,8 +148,9 @@ try {
   });
   assert.equal(missingToken.status, 403, 'mutation without session token was accepted');
 
-  console.log('control-panel-test: passed (12 checks)');
+  console.log('control-panel-test: passed (17 checks)');
 } finally {
   await new Promise((resolve) => control.server.close(resolve));
   fs.rmSync(temporaryRoot, { recursive: true, force: true });
 }
+
