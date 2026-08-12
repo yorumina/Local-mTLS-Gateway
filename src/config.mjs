@@ -5,6 +5,12 @@ import { settingsFromEnvironment, validateSafeConfig } from './config-validation
 import { readSettings, SETTINGS_FILE } from './settings-store.mjs';
 
 const PROJECT_ROOT = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
+const PLACEHOLDER_TOKENS = new Set([
+  'changeme',
+  'change-me',
+  'replace-me',
+  'replace-with-a-local-secret-at-least-16-characters',
+]);
 
 export class ConfigError extends Error {
   constructor(message) {
@@ -39,6 +45,7 @@ function validateToken(value, name, errors, { required = false } = {}) {
   }
   if (value.length < 16) errors.push(`${name} must contain at least 16 characters`);
   if (/[\r\n]/.test(value)) errors.push(`${name} contains a forbidden newline`);
+  if (PLACEHOLDER_TOKENS.has(value.toLowerCase())) errors.push(`${name} must not use a placeholder value`);
 }
 
 export function loadConfigFromEnvironment(env = process.env, { settingsFile = SETTINGS_FILE } = {}) {
@@ -103,3 +110,4 @@ export function loadConfig() {
     settingsFile: process.env.SIDECAR_SETTINGS_FILE || SETTINGS_FILE,
   });
 }
+
