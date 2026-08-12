@@ -1,4 +1,4 @@
-# OpenCode mTLS sidecar
+# OpenCode mTLS Sidecar
 
 這個資料夾提供一個 Windows/Node.js 本機 sidecar，讓 OpenCode 使用一般 OpenAI-compatible API 設定連到 loopback，再由 sidecar 帶著既有 client certificate 連到受 Cloudflare mTLS 保護的 gateway。
 
@@ -19,7 +19,7 @@ OpenCode
 管理介面是獨立 process，不會擴大 proxy 的路由：
 
 ```text
-Browser -> http://127.0.0.1:8790 -> Yorumina Sidecar Control
+Browser -> http://127.0.0.1:8790 -> OpenCode mTLS Sidecar Control Panel
                                       -> safe settings / diagnostics
                                       -> managed sidecar lifecycle
 ```
@@ -91,7 +91,7 @@ npm run smoke
 
 smoke test 只會啟動 loopback mock gateway，使用假 key，並以 `SIDECAR_TEST_MODE=true` 暫時跳過真實 client identity。它能驗證 API-key gate、路由白名單、request forwarding、JSON response 與 SSE response；它不能證明 Cloudflare mTLS、遠端 gateway 或 Qwen3.6 已可用。
 
-## Yorumina Sidecar Control
+## OpenCode mTLS Sidecar Control Panel
 
 先完成 `.env.local` 的本機 secret 設定，再執行 `npm run control`，然後開啟 `http://127.0.0.1:8790`。介面包含 Overview、Connection、mTLS Identity、Limits、OpenCode、Diagnostics 與 Settings / About。
 
@@ -113,8 +113,8 @@ Diagnostics 將 Configuration validation、Security policy check、Local sidecar
 
 它會建立目前使用者的 `OpenCode mTLS Sidecar` 登入排程，登入後在背景啟動 Control Panel 與它管理的 loopback sidecar。桌面會建立：
 
-- `OpenCode GB10`：確認 sidecar 正常後按需開啟 OpenCode Desktop。
-- `Yorumina Sidecar Control`：按一下即可啟動或開啟 `http://127.0.0.1:8790`。
+- `OpenCode mTLS Sidecar`：確認 sidecar 正常後按需開啟 OpenCode Desktop。
+- `OpenCode mTLS Sidecar Control Panel`：按一下即可啟動或開啟 `http://127.0.0.1:8790`。
 
 OpenCode Desktop 不會隨登入自動開啟。排程與捷徑都不含 API key、PFX passphrase 或憑證內容。
 
@@ -124,3 +124,4 @@ OpenCode Desktop 不會隨登入自動開啟。排程與捷徑都不含 API key�
 - 不接受非 `127.0.0.1` bind。
 - 不把 authorization、cookie、body 或 private key 寫入 log。
 - 不會自動部署或修改 Cloudflare、DNS、gateway、llama.cpp、模型或防火牆。
+
