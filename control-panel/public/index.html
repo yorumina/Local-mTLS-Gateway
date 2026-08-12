@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenCode mTLS Sidecar Control Panel</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><span></span></div>
+        <div><strong>OpenCode mTLS</strong><small>Sidecar Control Panel</small></div>
+      </div>
+      <nav aria-label="主要導覽">
+        <button class="nav-item active" data-page="overview"><span class="nav-icon">◫</span>Overview</button>
+        <button class="nav-item" data-page="connection"><span class="nav-icon">⌁</span>Connection</button>
+        <button class="nav-item" data-page="identity"><span class="nav-icon">◇</span>mTLS Identity</button>
+        <button class="nav-item" data-page="limits"><span class="nav-icon">↔</span>Limits</button>
+        <button class="nav-item" data-page="opencode"><span class="nav-icon">⌘</span>OpenCode</button>
+        <button class="nav-item" data-page="diagnostics"><span class="nav-icon">✓</span>Diagnostics</button>
+      </nav>
+      <div class="sidebar-footer">
+        <button class="nav-item" data-page="about"><span class="nav-icon">ⓘ</span>Settings / About</button>
+        <div class="local-only"><span class="status-dot healthy"></span>Local only · 127.0.0.1</div>
+      </div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">LOCAL ADMINISTRATION</p>
+          <h1 id="page-title">Overview</h1>
+          <p id="page-description">本機 sidecar 的連線、安全與診斷狀態。</p>
+        </div>
+        <div class="topbar-actions">
+          <button class="button secondary" id="refresh-button">重新整理</button>
+          <span class="status-pill unknown" id="global-status"><span class="status-dot"></span>Checking</span>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="page active" data-page-panel="overview">
+          <div class="overview-heading">
+            <div><h2>OpenCode mTLS Sidecar Control Panel</h2><p>安全鎖定的 OpenCode mTLS 本機閘道。</p></div>
+            <span class="status-pill unknown" id="overview-running"><span class="status-dot"></span>Unknown</span>
+          </div>
+          <div class="status-grid">
+            <article class="status-card"><div class="card-kicker">LOCAL</div><div class="card-value">127.0.0.1</div><div class="card-meta"><span id="overview-port">Port 8787</span><span class="status-label unknown" id="local-status">Unknown</span></div></article>
+            <article class="status-card"><div class="card-kicker">UPSTREAM</div><div class="card-value truncate" id="upstream-host">llm.yorumina.com</div><div class="card-meta"><span>HTTPS</span><span class="status-label unknown" id="upstream-status">Unknown</span></div></article>
+            <article class="status-card"><div class="card-kicker">mTLS</div><div class="card-value" id="identity-label">PFX Identity</div><div class="card-meta"><span id="identity-configured">Not configured</span><span class="status-label unknown" id="identity-status">Unknown</span></div></article>
+            <article class="status-card"><div class="card-kicker">POLICY</div><div class="card-value" id="policy-value">Not run</div><div class="card-meta"><span>Security invariants</span><span class="status-label unknown" id="policy-status">Unknown</span></div></article>
+          </div>
+          <div class="section-grid two-columns">
+            <article class="panel-card">
+              <div class="panel-heading"><div><h3>Security posture</h3><p>不可變更的安全邊界。</p></div><span class="badge locked">Locked</span></div>
+              <div class="locked-list">
+                <div><span>Local interface</span><strong>127.0.0.1 <small>LOCKED</small></strong></div>
+                <div><span>TLS verification</span><strong>Enabled <small>LOCKED</small></strong></div>
+                <div><span>Minimum TLS</span><strong>TLS 1.2 <small>LOCKED</small></strong></div>
+                <div><span>Proxy scope</span><strong>OpenAI routes only <small>LOCKED</small></strong></div>
+              </div>
+            </article>
+            <article class="panel-card">
+              <div class="panel-heading"><div><h3>Secret status</h3><p>只顯示是否設定，永不回傳內容。</p></div><span class="badge secret">Write-only</span></div>
+              <div class="secret-status-list">
+                <div><span>Sidecar API Key</span><strong id="secret-sidecar-status">Unknown</strong></div>
+                <div><span>Upstream API Key</span><strong id="secret-upstream-status">Unknown</strong></div>
+                <div><span>PFX Passphrase</span><strong id="secret-passphrase-status">Unknown</strong></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="page" data-page-panel="connection">
+          <div class="section-heading"><h2>Connection</h2><p>設定上游位置與本機 listener。安全固定值保持可見但不能修改。</p></div>
+          <article class="panel-card form-card">
+            <div class="field-row"><label for="upstreamBaseUrl"><span>Upstream URL</span><small>正式模式只接受 HTTPS，禁止內嵌帳密。</small></label><div class="input-wrap wide"><input id="upstreamBaseUrl" data-field="upstreamBaseUrl" type="url" spellcheck="false"></div></div>
+            <div class="field-row locked-row"><label><span>Local Interface</span><small>Locked by security policy</small></label><div class="locked-control"><code>127.0.0.1</code><span>LOCKED</span></div></div>
+            <div class="field-row"><label for="port"><span>Port</span><small>Sidecar listener，範圍 1–65535。</small></label><div class="input-wrap compact"><input id="port" data-field="port" type="number" min="1" max="65535"></div></div>
+            <div class="field-row locked-row"><label><span>TLS Certificate Verification</span><small>Cannot be disabled</small></label><div class="locked-control"><code>Enabled</code><span>LOCKED</span></div></div>
+          </article>
+        </section>
+
+        <section class="page" data-page-panel="identity">
+          <div class="section-heading"><h2>mTLS Identity</h2><p>只保存外部憑證路徑；private material 永不傳送至瀏覽器。</p></div>
+          <article class="panel-card form-card">
+            <div class="panel-heading"><div><h3>Identity type</h3><p>PEM certificate + key 或 PFX / PKCS#12，兩者不可混用。</p></div></div>
+            <div class="segmented" role="radiogroup" aria-label="Identity type">
+              <button type="button" data-identity="pem">PEM Certificate</button>
+              <button type="button" data-identity="pfx">PFX / PKCS#12</button>
+            </div>
+            <div id="pem-fields">
+              <div class="field-row"><label for="mtlsCertFile"><span>Certificate</span><small>Public certificate path</small></label><div class="path-control"><input id="mtlsCertFile" data-field="mtlsCertFile" type="text" spellcheck="false" placeholder="C:\certs\client.pem"><button type="button" class="button tertiary picker" data-picker="certificate" data-target="mtlsCertFile">Browse</button></div></div>
+              <div class="field-row"><label for="mtlsKeyFile"><span>Private Key</span><small>Path only; file contents never enter the UI</small></label><div class="path-control"><input id="mtlsKeyFile" data-field="mtlsKeyFile" type="text" spellcheck="false" placeholder="C:\certs\client.key"><button type="button" class="button tertiary picker" data-picker="privateKey" data-target="mtlsKeyFile">Browse</button></div></div>
+            </div>
+            <div id="pfx-fields">
+              <div class="field-row"><label for="mtlsPfxFile"><span>PFX / PKCS#12</span><small>Identity bundle path</small></label><div class="path-control"><input id="mtlsPfxFile" data-field="mtlsPfxFile" type="text" spellcheck="false" placeholder="C:\certs\client.pfx"><button type="button" class="button tertiary picker" data-picker="pfx" data-target="mtlsPfxFile">Browse</button></div></div>
+              <div class="field-row secret-row"><label for="pfxPassphrase"><span>Passphrase</span><small id="pfx-passphrase-hint">Write-only secret</small></label><div class="secret-input"><input id="pfxPassphrase" data-secret="pfxPassphrase" type="password" autocomplete="new-password" placeholder="Leave blank to keep current"><span>SECRET</span></div></div>
+            </div>
+            <div class="field-row"><label for="mtlsCaFile"><span>Private CA</span><small>Optional public CA certificate path</small></label><div class="path-control"><input id="mtlsCaFile" data-field="mtlsCaFile" type="text" spellcheck="false" placeholder="Optional"><button type="button" class="button tertiary picker" data-picker="privateCa" data-target="mtlsCaFile">Browse</button></div></div>
+          </article>
+          <article class="panel-card certificate-card"><div class="panel-heading"><div><h3>Identity status</h3><p>只驗證路徑可讀性與公開狀態。</p></div><span class="status-pill unknown" id="certificate-status"><span class="status-dot"></span>Unknown</span></div><div class="certificate-summary"><div><span>Type</span><strong id="certificate-type">—</strong></div><div><span>Configured</span><strong id="certificate-configured">—</strong></div><div><span>Private material</span><strong>Never exposed</strong></div></div></article>
+        </section>
+
+        <section class="page" data-page-panel="limits">
+          <div class="section-heading"><h2>Limits</h2><p>控制 request body 與 upstream 等待時間，不修改模型 context。</p></div>
+          <article class="panel-card limit-card">
+            <div class="limit-heading"><div><h3>Maximum Request Body</h3><p>限制傳入 sidecar 的 HTTP request 大小。</p></div><strong id="body-size-human">16 MB</strong></div>
+            <input class="range" id="body-size-range" type="range" min="1" max="256" step="1">
+            <div class="limit-input"><input id="maxBodyBytes" data-field="maxBodyBytes" type="number" min="1024" max="268435456"><span>bytes</span></div>
+          </article>
+          <article class="panel-card limit-card">
+            <div class="limit-heading"><div><h3>Upstream Timeout</h3><p>等待 gateway / model 回應的最長時間。</p></div><strong id="timeout-human">120 seconds</strong></div>
+            <input class="range" id="timeout-range" type="range" min="1" max="1800" step="1">
+            <div class="limit-input"><input id="upstreamTimeoutMs" data-field="upstreamTimeoutMs" type="number" min="1000" max="1800000"><span>ms</span></div>
+          </article>
+        </section>
+
+        <section class="page" data-page-panel="opencode">
+          <div class="section-heading"><h2>OpenCode</h2><p>固定使用本機 sidecar；API key 從環境變數取得。</p></div>
+          <article class="panel-card form-card">
+            <div class="field-row"><label><span>Provider Name</span><small>Display label</small></label><div class="locked-control"><code>GB10 Private LLM</code><span>CONFIG</span></div></div>
+            <div class="field-row"><label><span>Model ID</span><small>Sent to the gateway</small></label><div class="locked-control"><code>gb10-private-llm</code><span>CONFIG</span></div></div>
+            <div class="field-row"><label><span>Base URL</span><small>Always routes through the local sidecar</small></label><div class="locked-control"><code id="opencode-base-url">http://127.0.0.1:8787/v1</code><span>LOCKED</span></div></div>
+            <div class="field-row"><label><span>API Key Source</span><small>Secret value is never displayed</small></label><div class="locked-control"><code>SIDECAR_API_KEY</code><span>LOCKED</span></div></div>
+          </article>
+          <article class="panel-card form-card">
+            <div class="panel-heading"><div><h3>Update API keys</h3><p>輸入值只會 write-only 套用，不會被重新讀回。</p></div><span class="badge secret">Sensitive</span></div>
+            <div class="field-row secret-row"><label for="sidecarApiKey"><span>Sidecar API Key</span><small>At least 16 characters</small></label><div class="secret-input"><input id="sidecarApiKey" data-secret="sidecarApiKey" type="password" autocomplete="new-password" placeholder="Leave blank to keep current"><span>SECRET</span></div></div>
+            <div class="field-row secret-row"><label for="upstreamApiKey"><span>Upstream API Key</span><small>Optional gateway bearer token</small></label><div class="secret-input"><input id="upstreamApiKey" data-secret="upstreamApiKey" type="password" autocomplete="new-password" placeholder="Leave blank to keep current"><span>SECRET</span></div></div>
+          </article>
+        </section>
+
+        <section class="page" data-page-panel="diagnostics">
+          <div class="section-heading"><h2>Diagnostics</h2><p>區分本機 mock 測試與真實 upstream mTLS 驗證。</p></div>
+          <div class="diagnostics-list">
+            <article class="diagnostic-card"><div class="diagnostic-icon healthy">✓</div><div><h3>Configuration validation</h3><p>使用 runtime 相同的 authoritative validation。</p><pre id="validation-output">Not run</pre></div><button class="button secondary diagnostic-action" data-diagnostic="validate">Run</button></article>
+            <article class="diagnostic-card"><div class="diagnostic-icon unknown" id="policy-icon">⌁</div><div><h3>Security policy check</h3><p>驗證 loopback、TLS、route allowlist 與 secret safety。</p><pre id="policy-output">Not run</pre></div><button class="button secondary diagnostic-action" data-diagnostic="policy-check">Run</button></article>
+            <article class="diagnostic-card"><div class="diagnostic-icon unknown" id="health-icon">●</div><div><h3>Local sidecar health</h3><p>檢查 <code>/healthz</code>，不代表 upstream 可用。</p><pre id="health-output">Unknown</pre></div><button class="button secondary diagnostic-action" data-diagnostic="health">Run</button></article>
+            <article class="diagnostic-card warning-card"><div class="diagnostic-icon warning" id="smoke-icon">△</div><div><h3>Smoke test</h3><p>只使用 loopback mock gateway；不證明 Cloudflare mTLS、gateway 或模型可用。</p><pre id="smoke-output">Not run</pre></div><button class="button secondary diagnostic-action" data-diagnostic="smoke">Run</button></article>
+            <article class="diagnostic-card"><div class="diagnostic-icon unknown" id="upstream-icon">◇</div><div><h3>Real upstream mTLS verification</h3><p>真正連線 HTTPS upstream 並執行 client-certificate handshake。</p><pre id="upstream-output">Not run</pre></div><button class="button primary diagnostic-action" data-diagnostic="upstream">Verify</button></article>
+          </div>
+        </section>
+
+        <section class="page" data-page-panel="about">
+          <div class="section-heading"><h2>Settings / About</h2><p>本機管理介面資訊與安全界線。</p></div>
+          <article class="panel-card about-card"><div class="brand-mark large"><span></span></div><h2>OpenCode mTLS Sidecar Control Panel</h2><p>專門管理本機 OpenCode mTLS sidecar 的小型安全控制面板。</p><dl><div><dt>Control Panel</dt><dd>127.0.0.1:8790</dd></div><div><dt>Proxy</dt><dd>127.0.0.1:<span id="about-port">8787</span></dd></div><div><dt>Runtime</dt><dd>Node.js · Zero runtime dependencies</dd></div><div><dt>Network scope</dt><dd>Loopback only</dd></div></dl></article>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="apply-bar" id="apply-bar" hidden>
+    <div><strong id="change-count">0 unsaved changes</strong><span>設定尚未套用</span></div>
+    <div class="apply-actions"><button class="button tertiary" id="revert-button">Revert</button><button class="button secondary" id="validate-button">Validate</button><button class="button primary" id="review-button">Review & Apply</button></div>
+  </div>
+
+  <div class="modal-backdrop" id="diff-modal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="diff-title">
+      <div class="modal-header"><div><p class="eyebrow">CONFIGURATION DIFF</p><h2 id="diff-title">Review changes</h2></div><button class="icon-button" id="close-modal" aria-label="Close">×</button></div>
+      <div class="diff-list" id="diff-list"></div>
+      <div class="modal-note"><strong>Atomic apply</strong><span>Validation → write → policy check → controlled restart. Failure restores the previous snapshot.</span></div>
+      <div class="modal-actions"><button class="button tertiary" id="cancel-apply">Cancel</button><button class="button primary" id="confirm-apply">Apply & Restart</button></div>
+    </section>
+  </div>
+
+  <div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>

@@ -48,3 +48,12 @@
 
 只有在 `npm run check` 與 `npm run smoke` 都通過，且未引入任何 secret、非 loopback listener、TLS bypass 或未授權路由時，才可宣稱本資料夾的本機實作完成。這不代表遠端 Cloudflare mTLS、gateway routing 或 llama.cpp/Qwen3.6 已完成部署。
 
+## 5. Control Panel 強制契約
+
+- Control Panel 必須是與 proxy 分離的 process，固定監聽 `127.0.0.1:8790`；不得把任何 UI 或 Control Panel API route 加入 `src/server.mjs`。
+- `.sidecar.local.json` 只能儲存 URL、數值、檔案路徑與 identity type，必須保持 gitignored，且不得包含 API key、passphrase、憑證或 private key 內容。
+- Control Panel 的 read API 只能回傳安全設定與 secret 的 boolean status。secret 更新必須是 write-only，response、diff、log 與錯誤訊息都不得回傳 secret value。
+- 修改設定的 API 必須驗證 loopback Host、same-origin 與當次啟動產生的 session token；不得開放跨來源 mutation。
+- 套用失敗必須回復上一版安全設定與 secret 檔案；不得留下半套用狀態。
+- Control Panel 測試只能使用暫存目錄與假 secret，不得讀取真實 `.env.local`。
+- `npm run smoke` 只代表 loopback mock path。只有獨立執行真實 upstream diagnostic 成功時，才可回報遠端 HTTPS/mTLS 可達；仍不得將其擴大解讀為 Qwen 回答品質驗證。

@@ -120,12 +120,19 @@ async function request(port, route, { method = 'GET', key = sidecarKey, body, he
     requestHeaders['content-type'] = 'application/json';
     requestHeaders['content-length'] = Buffer.byteLength(body);
   }
-  const response = await fetch(`http://127.0.0.1:${port}${route}`, {
-    method,
-    headers: requestHeaders,
-    body,
+  return new Promise((resolve, reject) => {
+    const outgoing = http.request({ hostname: '127.0.0.1', port, path: route, method, headers: requestHeaders }, (response) => {
+      const chunks = [];
+      response.on('data', (chunk) => chunks.push(chunk));
+      response.once('end', () => resolve({
+        status: response.statusCode,
+        headers: { get: (name) => response.headers[String(name).toLowerCase()] ?? null },
+        body: Buffer.concat(chunks).toString('utf8'),
+      }));
+    });
+    outgoing.once('error', reject);
+    outgoing.end(body);
   });
-  return { status: response.status, headers: response.headers, body: await response.text() };
 }
 
 async function closeServer(server) {
@@ -159,6 +166,7 @@ async function run() {
       PORT: '0',
       SIDECAR_API_KEY: sidecarKey,
       SIDECAR_TEST_MODE: 'true',
+      SIDECAR_SETTINGS_FILE: path.join(root, '.smoke-test-settings-do-not-create.json'),
       UPSTREAM_BASE_URL: `http://127.0.0.1:${gatewayPort}`,
       UPSTREAM_TIMEOUT_MS: '5000',
     },
@@ -172,6 +180,25 @@ async function run() {
   const unauthorized = await request(sidecarPort, '/v1/models', { key: null });
   assert(unauthorized.status === 401, 'missing API key should be rejected');
   assert(observed.length === 0, 'unauthorized request must not reach the gateway');
+
+  const preflight = await request(sidecarPort, '/v1/chat/completions', {
+    method: 'OPTIONS',
+    key: null,
+    headers: {
+      origin: 'http://localhost:5173',
+      'access-control-request-headers': 'authorization, content-type',
+      'access-control-request-method': 'POST',
+    },
+  });
+  assert(preflight.status === 204, 'local AIRI CORS preflight should succeed');
+  assert(preflight.headers.get('access-control-allow-origin') === 'http://localhost:5173', 'CORS origin was not echoed');
+
+  const rejectedPreflight = await request(sidecarPort, '/v1/chat/completions', {
+    method: 'OPTIONS',
+    key: null,
+    headers: { origin: 'https://evil.example', 'access-control-request-method': 'POST' },
+  });
+  assert(rejectedPreflight.status === 403, 'non-local CORS origin should be rejected');
 
   const models = await request(sidecarPort, '/v1/models');
   assert(models.status === 200 && models.body.includes('Qwen3.6-smoke'), 'models response was not proxied');
@@ -212,4 +239,3 @@ try {
   await stopChild(sidecarProcess);
   await closeServer(mockServer);
 }
-

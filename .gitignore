@@ -1,6 +1,7 @@
 .env
 .env.*
 !.env.example
+.sidecar.local.json
 *.pem
 *.key
 *.p12
@@ -9,4 +10,3 @@ certs/
 logs/
 node_modules/
 npm-debug.log*
-
