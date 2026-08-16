@@ -76,8 +76,8 @@ function createMockGateway() {
     }
 
     if (request.url === '/v1/audio/speech' && request.method === 'POST') {
-      const audio = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45]);
-      response.writeHead(200, { 'content-type': 'audio/wav', 'content-length': audio.length });
+      const audio = Buffer.from([0x49, 0x44, 0x33, 0x04, 0x00, 0x00]);
+      response.writeHead(200, { 'content-type': 'audio/mpeg', 'content-length': audio.length });
       response.end(audio);
       return;
     }
@@ -221,15 +221,24 @@ async function run() {
   const responsesApi = await request(sidecarPort, '/v1/responses', { method: 'POST', body: responseBody });
   assert(responsesApi.status === 200 && responsesApi.body.includes('resp-smoke'), 'Responses API was not proxied');
 
-  const speechBody = JSON.stringify({ model: 'nyako-tts', input: 'hello', voice: 'VoiceDesign', response_format: 'wav' });
+  const speechBody = JSON.stringify({
+    model: 'nyako-tts',
+    input: '要講的內容',
+    voice: 'nyako',
+    instructions: '這一句的情緒和說話方式',
+    response_format: 'mp3',
+    speed: 1.0,
+    stream_format: 'audio',
+  });
   const speech = await request(sidecarPort, '/v1/audio/speech', {
     method: 'POST',
     body: speechBody,
-    headers: { accept: 'audio/wav' },
+    headers: { accept: 'audio/*' },
   });
   assert(speech.status === 200, 'TTS response was not proxied');
-  assert(speech.headers.get('content-type') === 'audio/wav', 'TTS content type was not preserved');
-  assert(speech.rawBody.subarray(0, 4).toString('ascii') === 'RIFF', 'TTS binary body was not preserved');
+  assert(observed.at(-1)?.body === speechBody, 'TTS request body was changed unexpectedly');
+  assert(speech.headers.get('content-type') === 'audio/mpeg', 'TTS content type was not preserved');
+  assert(speech.rawBody.subarray(0, 3).toString('ascii') === 'ID3', 'TTS binary body was not preserved');
 
   const deniedAudioRoute = await request(sidecarPort, '/v1/audio/transcriptions', { method: 'POST', body: '{}' });
   assert(deniedAudioRoute.status === 404, 'unlisted audio route should be rejected');

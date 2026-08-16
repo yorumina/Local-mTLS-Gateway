@@ -80,7 +80,7 @@ try {
   assert(server.includes("['/v1/chat/completions', new Set(['POST'])]"), 'chat route guard missing');
   assert(server.includes("['/v1/audio/speech', new Set(['POST'])]"), 'TTS route guard missing');
   assert(agent.includes('/v1/audio/speech'), 'AGENTS.md TTS allowlist missing');
-  assert(smoke.includes("request.url === '/v1/audio/speech'") && smoke.includes("'content-type': 'audio/wav'"), 'binary TTS smoke coverage missing');
+  assert(smoke.includes("request.url === '/v1/audio/speech'") && smoke.includes("'content-type': 'audio/mpeg'") && smoke.includes("observed.at(-1)?.body === speechBody"), 'binary TTS passthrough smoke coverage missing');
   assert(server.includes('Object.assign(options, config.tls'), 'upstream TLS options are not applied');
   assert(server.includes('NODE_TLS_REJECT_UNAUTHORIZED') === false, 'TLS bypass token found in server');
   assert(controlServer.includes("const CONTROL_HOST = '127.0.0.1'"), 'Control Panel loopback bind missing');

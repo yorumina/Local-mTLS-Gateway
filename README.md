@@ -12,7 +12,7 @@ Local API clients
   -> https://llm.yorumina.com
   -> /v1/chat/completions -> Qwen3.6 35B-A3B
   -> /v1/models          -> Auth Gateway
-  -> /v1/audio/speech    -> nyako-tts / Qwen3-TTS 1.7B VoiceDesign
+  -> /v1/audio/speech    -> nyako-tts
 ```
 
 `AGENTS.md` 是本資料夾的強制工作契約；`npm run check` 會檢查關鍵安全不變條件。
@@ -92,7 +92,21 @@ Authorization: Bearer <SIDECAR_API_KEY>
 Content-Type: application/json
 ```
 
-Request body 使用 OpenAI-compatible speech 欄位，例如 `model: "nyako-tts"`、`input`、`voice: "VoiceDesign"` 與 `response_format: "wav"`。目前上游只支援 WAV；使用其他 `response_format` 會回 `400`。真實 API key 不要寫入 source、README 或 URL。
+Request body 會以原始 bytes 轉送，sidecar 不會改寫 `model`、`input`、`voice`、`instructions`、`response_format`、`speed`、`stream_format` 或其他 JSON 欄位。以下是目前可用的請求範例；`response_format` 可由 client 按上游支援格式指定：
+
+```json
+{
+  "model": "nyako-tts",
+  "input": "要講的內容",
+  "voice": "nyako",
+  "instructions": "這一句的情緒和說話方式",
+  "response_format": "mp3",
+  "speed": 1.0,
+  "stream_format": "audio"
+}
+```
+
+真實 API key 不要寫入 source、README 或 URL。
 
 ## 驗證
 
