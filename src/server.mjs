@@ -3,13 +3,14 @@ import http from 'node:http';
 import https from 'node:https';
 import { ConfigError, loadConfig } from './config.mjs';
 
-const SERVICE_NAME = 'opencode-mtls-sidecar';
+const SERVICE_NAME = 'yorumina-mtls-sidecar';
 const ALLOWED_ROUTES = new Map([
   ['/v1/models', new Set(['GET'])],
   ['/v1/chat/completions', new Set(['POST'])],
   ['/v1/completions', new Set(['POST'])],
   ['/v1/responses', new Set(['POST'])],
   ['/v1/embeddings', new Set(['POST'])],
+  ['/v1/audio/speech', new Set(['POST'])],
 ]);
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',

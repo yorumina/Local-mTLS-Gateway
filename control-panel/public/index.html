@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>OpenCode mTLS Sidecar Control Panel</title>
+  <title>Yorumina Sidecar Control</title>
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -11,14 +11,14 @@
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true"><span></span></div>
-        <div><strong>OpenCode mTLS</strong><small>Sidecar Control Panel</small></div>
+        <div><strong>Yorumina</strong><small>Sidecar Control</small></div>
       </div>
       <nav aria-label="主要導覽">
         <button class="nav-item active" data-page="overview"><span class="nav-icon">◫</span>Overview</button>
         <button class="nav-item" data-page="connection"><span class="nav-icon">⌁</span>Connection</button>
         <button class="nav-item" data-page="identity"><span class="nav-icon">◇</span>mTLS Identity</button>
         <button class="nav-item" data-page="limits"><span class="nav-icon">↔</span>Limits</button>
-        <button class="nav-item" data-page="opencode"><span class="nav-icon">⌘</span>OpenCode</button>
+        <button class="nav-item" data-page="opencode"><span class="nav-icon">⌘</span>API Clients</button>
         <button class="nav-item" data-page="diagnostics"><span class="nav-icon">✓</span>Diagnostics</button>
       </nav>
       <div class="sidebar-footer">
@@ -43,7 +43,7 @@
       <div class="content">
         <section class="page active" data-page-panel="overview">
           <div class="overview-heading">
-            <div><h2>OpenCode mTLS Sidecar Control Panel</h2><p>安全鎖定的 OpenCode mTLS 本機閘道。</p></div>
+            <div><h2>Yorumina Sidecar Control</h2><p>供本機多個專案共用的安全 mTLS API 閘道。</p></div>
             <span class="status-pill unknown" id="overview-running"><span class="status-dot"></span>Unknown</span>
           </div>
           <div class="status-grid">
@@ -59,7 +59,7 @@
                 <div><span>Local interface</span><strong>127.0.0.1 <small>LOCKED</small></strong></div>
                 <div><span>TLS verification</span><strong>Enabled <small>LOCKED</small></strong></div>
                 <div><span>Minimum TLS</span><strong>TLS 1.2 <small>LOCKED</small></strong></div>
-                <div><span>Proxy scope</span><strong>OpenAI routes only <small>LOCKED</small></strong></div>
+                <div><span>Proxy scope</span><strong>Approved AI routes only <small>LOCKED</small></strong></div>
               </div>
             </article>
             <article class="panel-card">
@@ -119,12 +119,15 @@
         </section>
 
         <section class="page" data-page-panel="opencode">
-          <div class="section-heading"><h2>OpenCode</h2><p>固定使用本機 sidecar；API key 從環境變數取得。</p></div>
+          <div class="section-heading"><h2>API Clients</h2><p>OpenCode 與其他本機專案共用同一個 loopback sidecar。</p></div>
           <article class="panel-card form-card">
-            <div class="field-row"><label><span>Provider Name</span><small>Display label</small></label><div class="locked-control"><code>GB10 Private LLM</code><span>CONFIG</span></div></div>
-            <div class="field-row"><label><span>Model ID</span><small>Sent to the gateway</small></label><div class="locked-control"><code>gb10-private-llm</code><span>CONFIG</span></div></div>
-            <div class="field-row"><label><span>Base URL</span><small>Always routes through the local sidecar</small></label><div class="locked-control"><code id="opencode-base-url">http://127.0.0.1:8787/v1</code><span>LOCKED</span></div></div>
+            <div class="field-row"><label><span>Chat Model</span><small>Qwen3.6 35B-A3B</small></label><div class="locked-control"><code>gb10-private-llm</code><span>CONFIG</span></div></div>
+            <div class="field-row"><label><span>TTS Model</span><small>Qwen3-TTS 1.7B VoiceDesign</small></label><div class="locked-control"><code>nyako-tts</code><span>CONFIG</span></div></div>
+            <div class="field-row"><label><span>API Base URL</span><small>Chat, models and compatible endpoints</small></label><div class="locked-control"><code id="opencode-base-url">http://127.0.0.1:8787/v1</code><span>LOCKED</span></div></div>
+            <div class="field-row"><label><span>Speech Endpoint</span><small>Binary audio response is streamed unchanged</small></label><div class="locked-control"><code id="speech-endpoint">http://127.0.0.1:8787/v1/audio/speech</code><span>LOCKED</span></div></div>
             <div class="field-row"><label><span>API Key Source</span><small>Secret value is never displayed</small></label><div class="locked-control"><code>SIDECAR_API_KEY</code><span>LOCKED</span></div></div>
+            <div class="field-row"><label><span>OpenCode Limits</span><small>Maximum input / generated tokens</small></label><div class="locked-control"><code>131,072 context · 32,768 output</code><span>CONFIG</span></div></div>
+            <div class="field-row"><label><span>Thinking Budget</span><small>Controlled by upstream llama.cpp</small></label><div class="locked-control"><code>thinking_budget_tokens</code><span>UPSTREAM</span></div></div>
           </article>
           <article class="panel-card form-card">
             <div class="panel-heading"><div><h3>Update API keys</h3><p>輸入值只會 write-only 套用，不會被重新讀回。</p></div><span class="badge secret">Sensitive</span></div>
@@ -146,7 +149,7 @@
 
         <section class="page" data-page-panel="about">
           <div class="section-heading"><h2>Settings / About</h2><p>本機管理介面資訊與安全界線。</p></div>
-          <article class="panel-card about-card"><div class="brand-mark large"><span></span></div><h2>OpenCode mTLS Sidecar Control Panel</h2><p>專門管理本機 OpenCode mTLS sidecar 的小型安全控制面板。</p><dl><div><dt>Control Panel</dt><dd>127.0.0.1:8790</dd></div><div><dt>Proxy</dt><dd>127.0.0.1:<span id="about-port">8787</span></dd></div><div><dt>Runtime</dt><dd>Node.js · Zero runtime dependencies</dd></div><div><dt>Network scope</dt><dd>Loopback only</dd></div></dl></article>
+          <article class="panel-card about-card"><div class="brand-mark large"><span></span></div><h2>Yorumina Sidecar Control</h2><p>管理本機多專案共用 mTLS AI sidecar 的小型安全控制面板。</p><dl><div><dt>Control Panel</dt><dd>127.0.0.1:8790</dd></div><div><dt>Proxy</dt><dd>127.0.0.1:<span id="about-port">8787</span></dd></div><div><dt>Services</dt><dd>Chat · Models · TTS</dd></div><div><dt>Runtime</dt><dd>Node.js · Zero runtime dependencies</dd></div><div><dt>Network scope</dt><dd>Loopback only</dd></div></dl></article>
         </section>
       </div>
     </main>

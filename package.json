@@ -2,7 +2,7 @@
   "name": "opencode-mtls-sidecar",
   "version": "0.1.0",
   "private": true,
-  "description": "Loopback-only OpenAI-compatible proxy with an outbound mTLS client certificate.",
+  "description": "Loopback-only Chat, Models and TTS proxy with an outbound mTLS client certificate.",
   "type": "module",
   "engines": {
     "node": ">=20.11"

@@ -1,17 +1,18 @@
-# OpenCode mTLS Sidecar
+# Yorumina mTLS AI sidecar
 
-這個資料夾提供一個 Windows/Node.js 本機 sidecar，讓 OpenCode 使用一般 OpenAI-compatible API 設定連到 loopback，再由 sidecar 帶著既有 client certificate 連到受 Cloudflare mTLS 保護的 gateway。
+這個資料夾提供一個 Windows/Node.js 本機 sidecar，讓 OpenCode 與其他本機專案透過 loopback 使用 Yorumina 的 Chat、Models 與 TTS API，再由 sidecar 帶著既有 client certificate 連到受 Cloudflare mTLS 保護的服務。
 
 ## 固定資料流
 
 ```text
-OpenCode
-  -> http://127.0.0.1:8787/v1
+Local API clients
+  -> http://127.0.0.1:8787
   -> local bearer API-key check
   -> HTTPS client certificate
   -> https://llm.yorumina.com
-  -> Cloudflare mTLS / gateway
-  -> llama.cpp / Qwen3.6
+  -> /v1/chat/completions -> Qwen3.6 35B-A3B
+  -> /v1/models          -> Auth Gateway
+  -> /v1/audio/speech    -> nyako-tts / Qwen3-TTS 1.7B VoiceDesign
 ```
 
 `AGENTS.md` 是本資料夾的強制工作契約；`npm run check` 會檢查關鍵安全不變條件。
@@ -19,7 +20,7 @@ OpenCode
 管理介面是獨立 process，不會擴大 proxy 的路由：
 
 ```text
-Browser -> http://127.0.0.1:8790 -> OpenCode mTLS Sidecar Control Panel
+Browser -> http://127.0.0.1:8790 -> Yorumina Sidecar Control
                                       -> safe settings / diagnostics
                                       -> managed sidecar lifecycle
 ```
@@ -54,7 +55,7 @@ Proxy 固定使用 `127.0.0.1:8787`，Control Panel 固定使用 `127.0.0.1:8790
    預設 listener 是 `127.0.0.1:8787`。啟動失敗通常表示 API key、HTTPS 上游或 client identity 尚未完整設定；這是預期的 fail-closed 行為。
 
 
-## OpenCode 端設定
+## Client 設定
 
 把 provider 的 base URL 設為：
 
@@ -62,7 +63,9 @@ Proxy 固定使用 `127.0.0.1:8787`，Control Panel 固定使用 `127.0.0.1:8790
 http://127.0.0.1:8787/v1
 ```
 
-把 OpenCode 的 API key 設成與 `SIDECAR_API_KEY` 相同的本機值。這個值是 sidecar 的 inbound gate，不是本專案內保存的 OpenAI Platform key。
+把 client 的 API key 設成與 `SIDECAR_API_KEY` 相同的本機值。這個值只是 sidecar 的 inbound gate，不是本專案內保存的 OpenAI Platform key。
+
+OpenCode 的範例設定保留在 `opencode.json`。目前宣告 `131072` input context 與 `32768` output；output 是 OpenCode 預留的最大生成量，不等於 llama.cpp 的 thinking budget。實際 thinking budget 由上游 llama.cpp 啟動或每次請求的 `thinking_budget_tokens` 控制。
 
 若 gateway 需要另一個 bearer token，設定 `UPSTREAM_API_KEY`；sidecar 會使用它向上游認證，而不會把本機 inbound token 傳給上游。若 `UPSTREAM_API_KEY` 留白，已驗證的 inbound bearer token 才會被轉送給 gateway。
 
@@ -77,8 +80,19 @@ http://127.0.0.1:8787/v1
 | POST | `/v1/completions` |
 | POST | `/v1/responses` |
 | POST | `/v1/embeddings` |
+| POST | `/v1/audio/speech` |
 
-`/healthz` 與 `/readyz` 是本機診斷端點，不會轉送到 gateway。所有其他路徑都會被拒絕。
+`/v1/audio/speech` 的 binary audio response 會串流轉送，不會轉成 JSON 或文字。`/healthz` 與 `/readyz` 是本機診斷端點，不會轉送到 gateway。所有其他路徑都會被拒絕。
+
+TTS client 使用：
+
+```text
+POST http://127.0.0.1:8787/v1/audio/speech
+Authorization: Bearer <SIDECAR_API_KEY>
+Content-Type: application/json
+```
+
+Request body 使用 OpenAI-compatible speech 欄位，例如 `model: "nyako-tts"`、`input`、`voice: "VoiceDesign"` 與 `response_format: "wav"`。目前上游只支援 WAV；使用其他 `response_format` 會回 `400`。真實 API key 不要寫入 source、README 或 URL。
 
 ## 驗證
 
@@ -89,13 +103,13 @@ npm run test:control
 npm run smoke
 ```
 
-smoke test 只會啟動 loopback mock gateway，使用假 key，並以 `SIDECAR_TEST_MODE=true` 暫時跳過真實 client identity。它能驗證 API-key gate、路由白名單、request forwarding、JSON response 與 SSE response；它不能證明 Cloudflare mTLS、遠端 gateway 或 Qwen3.6 已可用。
+smoke test 只會啟動 loopback mock gateway，使用假 key，並以 `SIDECAR_TEST_MODE=true` 暫時跳過真實 client identity。它能驗證 API-key gate、路由白名單、request forwarding、JSON、SSE 與 binary audio response；它不能證明 Cloudflare mTLS、遠端 gateway、Qwen3.6 或 nyako-tts 已可用。
 
-## OpenCode mTLS Sidecar Control Panel
+## Yorumina Sidecar Control
 
-先完成 `.env.local` 的本機 secret 設定，再執行 `npm run control`，然後開啟 `http://127.0.0.1:8790`。介面包含 Overview、Connection、mTLS Identity、Limits、OpenCode、Diagnostics 與 Settings / About。
+先完成 `.env.local` 的本機 secret 設定，再執行 `npm run control`，然後開啟 `http://127.0.0.1:8790`。介面包含 Overview、Connection、mTLS Identity、Limits、API Clients、Diagnostics 與 Settings / About。
 
-介面可以修改上游 HTTPS URL、本機 proxy port、request body 上限、upstream timeout、PEM/PFX identity 類型與外部檔案路徑，以及 OpenCode provider/model 顯示設定。
+介面可以修改上游 HTTPS URL、本機 proxy port、request body 上限、upstream timeout、PEM/PFX identity 類型與外部檔案路徑，並顯示 Chat、Models 與 TTS client endpoint。
 
 非敏感設定寫入 gitignored 的 `.sidecar.local.json`。`SIDECAR_API_KEY`、`UPSTREAM_API_KEY` 與 `MTLS_PASSPHRASE` 仍保存在 environment / `.env.local`，介面只顯示 `Configured` 或 `Not configured`；更新 secret 是 write-only，瀏覽器、diff、log 與 API response 都不會取得原值。
 
@@ -111,12 +125,9 @@ Diagnostics 將 Configuration validation、Security policy check、Local sidecar
 .\install-windows-integration.ps1
 ```
 
-它會建立目前使用者的 `OpenCode mTLS Sidecar` 登入排程，登入後在背景啟動 Control Panel 與它管理的 loopback sidecar。桌面會建立：
+它會建立目前使用者的 `Yorumina mTLS Sidecar` 登入排程，登入後在背景啟動 Control Panel 與它管理的 loopback sidecar。桌面只建立 `Yorumina Sidecar` 捷徑；點擊後啟動或開啟 Control Panel，不會自動啟動 OpenCode 或其他 client app。安裝程式會移除舊的 `OpenCode GB10` 捷徑與舊登入排程，避免重複啟動。
 
-- `OpenCode mTLS Sidecar`：確認 sidecar 正常後按需開啟 OpenCode Desktop。
-- `OpenCode mTLS Sidecar Control Panel`：按一下即可啟動或開啟 `http://127.0.0.1:8790`。
-
-OpenCode Desktop 不會隨登入自動開啟。排程與捷徑都不含 API key、PFX passphrase 或憑證內容。
+排程與捷徑都不含 API key、PFX passphrase 或憑證內容。
 
 ## 安全界線
 

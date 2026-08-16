@@ -4,17 +4,17 @@
   "provider": {
     "gb10": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "GB10 Private LLM",
+      "name": "Yorumina Private AI",
       "options": {
         "baseURL": "http://127.0.0.1:8787/v1",
         "apiKey": "{env:SIDECAR_API_KEY}"
       },
       "models": {
         "gb10-private-llm": {
-          "name": "GB10 Private LLM",
+          "name": "Qwen3.6 35B-A3B",
           "limit": {
-            "context": 32768,
-            "output": 8192
+            "context": 131072,
+            "output": 32768
           }
         }
       }

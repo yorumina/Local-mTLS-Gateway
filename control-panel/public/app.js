@@ -13,7 +13,7 @@ const pageMeta = {
   connection: ['Connection', '設定安全的 upstream 與 loopback listener。'],
   identity: ['mTLS Identity', '管理 PEM 或 PFX identity 的外部檔案路徑。'],
   limits: ['Limits', '控制 request body 與 upstream timeout。'],
-  opencode: ['OpenCode', '查看固定 provider 設定與 write-only API keys。'],
+  opencode: ['API Clients', '查看通用 Chat、Models、TTS endpoint 與 write-only API keys。'],
   diagnostics: ['Diagnostics', '執行本機檢查與真實 upstream 驗證。'],
   about: ['Settings / About', 'Control Panel 的版本與安全界線。'],
 };
@@ -150,6 +150,7 @@ function renderForm() {
   updateLimitDisplays();
   $('#overview-port').textContent = `Port ${state.draft.port}`;
   $('#opencode-base-url').textContent = `http://127.0.0.1:${state.draft.port}/v1`;
+  $('#speech-endpoint').textContent = `http://127.0.0.1:${state.draft.port}/v1/audio/speech`;
   $('#about-port').textContent = state.draft.port;
 }
 

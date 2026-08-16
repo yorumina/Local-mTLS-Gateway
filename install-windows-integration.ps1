@@ -2,14 +2,13 @@ $ErrorActionPreference = 'Stop'
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '.')).Path
 $runScript = Join-Path $projectRoot 'run-control-panel.ps1'
-$desktopLaunchScript = Join-Path $projectRoot 'start-opencode-desktop.ps1'
 $controlPanelLaunchScript = Join-Path $projectRoot 'open-control-panel.ps1'
-$openCodeExe = Join-Path $env:LOCALAPPDATA 'Programs\@opencode-aidesktop\OpenCode.exe'
-$taskName = 'OpenCode mTLS Sidecar'
-$shortcutName = 'OpenCode mTLS Sidecar.lnk'
-$controlPanelShortcutName = 'OpenCode mTLS Sidecar Control Panel.lnk'
+$taskName = 'Yorumina mTLS Sidecar'
+$legacyTaskName = 'OpenCode mTLS Sidecar'
+$shortcutName = 'Yorumina Sidecar.lnk'
+$legacyShortcutNames = @('OpenCode GB10.lnk', 'Yorumina Sidecar Control.lnk', 'OpenCode mTLS Sidecar.lnk', 'OpenCode mTLS Sidecar Control Panel.lnk')
 
-foreach ($requiredPath in @($runScript, $desktopLaunchScript, $controlPanelLaunchScript, $openCodeExe)) {
+foreach ($requiredPath in @($runScript, $controlPanelLaunchScript)) {
   if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
     throw "Required file is missing: $requiredPath"
   }
@@ -40,7 +39,7 @@ $taskSettings = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask `
   -TaskName $taskName `
-  -Description 'Starts the loopback-only OpenCode mTLS Sidecar Control Panel after user logon.' `
+  -Description 'Starts the loopback-only Yorumina Control Panel and managed multi-service mTLS sidecar after user logon.' `
   -Action $taskAction `
   -Trigger $taskTrigger `
   -Principal $taskPrincipal `
@@ -49,28 +48,29 @@ Register-ScheduledTask `
 
 $desktopPath = [Environment]::GetFolderPath('Desktop')
 $shortcutPath = Join-Path $desktopPath $shortcutName
-$quotedDesktopScript = '"' + $desktopLaunchScript + '"'
+$quotedControlPanelScript = '"' + $controlPanelLaunchScript + '"'
 $shell = New-Object -ComObject WScript.Shell
 $shortcut = $shell.CreateShortcut($shortcutPath)
 $shortcut.TargetPath = $powerShellExe
-$shortcut.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $quotedDesktopScript"
+$shortcut.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $quotedControlPanelScript"
 $shortcut.WorkingDirectory = $projectRoot
-$shortcut.IconLocation = "$openCodeExe,0"
-$shortcut.Description = 'Start OpenCode Desktop with the local OpenCode mTLS Sidecar'
+$shortcut.IconLocation = "$powerShellExe,0"
+$shortcut.Description = 'Start or open the local Yorumina mTLS sidecar control panel'
 $shortcut.Save()
 
-$controlPanelShortcutPath = Join-Path $desktopPath $controlPanelShortcutName
-$quotedControlPanelScript = '"' + $controlPanelLaunchScript + '"'
-$controlShortcut = $shell.CreateShortcut($controlPanelShortcutPath)
-$controlShortcut.TargetPath = $powerShellExe
-$controlShortcut.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $quotedControlPanelScript"
-$controlShortcut.WorkingDirectory = $projectRoot
-$controlShortcut.IconLocation = "$openCodeExe,0"
-$controlShortcut.Description = 'Open the local OpenCode mTLS Sidecar Control Panel'
-$controlShortcut.Save()
+foreach ($legacyShortcutName in $legacyShortcutNames) {
+  $legacyShortcutPath = Join-Path $desktopPath $legacyShortcutName
+  if (Test-Path -LiteralPath $legacyShortcutPath -PathType Leaf) {
+    Remove-Item -LiteralPath $legacyShortcutPath -Force
+  }
+}
+
+if ($legacyTaskName -ne $taskName -and (Get-ScheduledTask -TaskName $legacyTaskName -ErrorAction SilentlyContinue)) {
+  Stop-ScheduledTask -TaskName $legacyTaskName -ErrorAction SilentlyContinue
+  Unregister-ScheduledTask -TaskName $legacyTaskName -Confirm:$false
+}
 
 Start-ScheduledTask -TaskName $taskName
 
 Write-Output "Scheduled task installed: $taskName"
 Write-Output "Desktop shortcut installed: $shortcutPath"
-Write-Output "Control Panel shortcut installed: $controlPanelShortcutPath"

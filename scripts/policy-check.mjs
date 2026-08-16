@@ -22,6 +22,8 @@ const requiredFiles = [
   'scripts/config-test.mjs',
   'scripts/control-panel-test.mjs',
   'scripts/smoke-test.mjs',
+  'install-windows-integration.ps1',
+  'opencode.json',
 ];
 let checks = 0;
 
@@ -49,6 +51,9 @@ try {
   const diagnostics = read('control-panel/lib/diagnostics.mjs');
   const controlApp = read('control-panel/public/app.js');
   const controlHtml = read('control-panel/public/index.html');
+  const smoke = read('scripts/smoke-test.mjs');
+  const windowsInstaller = read('install-windows-integration.ps1');
+  const openCodeConfig = JSON.parse(read('opencode.json'));
   const packageJson = JSON.parse(read('package.json'));
 
   for (const file of requiredFiles) assert(fs.existsSync(path.join(root, file)), `missing required file: ${file}`);
@@ -73,6 +78,9 @@ try {
   assert(server.includes('containsCredentialQuery'), 'credential query-string rejection missing');
   assert(server.includes("['/v1/models', new Set(['GET'])]"), 'models route guard missing');
   assert(server.includes("['/v1/chat/completions', new Set(['POST'])]"), 'chat route guard missing');
+  assert(server.includes("['/v1/audio/speech', new Set(['POST'])]"), 'TTS route guard missing');
+  assert(agent.includes('/v1/audio/speech'), 'AGENTS.md TTS allowlist missing');
+  assert(smoke.includes("request.url === '/v1/audio/speech'") && smoke.includes("'content-type': 'audio/wav'"), 'binary TTS smoke coverage missing');
   assert(server.includes('Object.assign(options, config.tls'), 'upstream TLS options are not applied');
   assert(server.includes('NODE_TLS_REJECT_UNAUTHORIZED') === false, 'TLS bypass token found in server');
   assert(controlServer.includes("const CONTROL_HOST = '127.0.0.1'"), 'Control Panel loopback bind missing');
@@ -86,6 +94,11 @@ try {
   assert(processManager.includes('SECRET_NAMES') && processManager.includes('delete childEnv[name]'), 'managed sidecar may inherit stale secrets');
   assert(diagnostics.includes('0.0.0.0') === false, 'non-loopback listener token found in diagnostics');
   assert(controlHtml.includes('SIDECAR_API_KEY') && controlHtml.includes('Write-only') && controlApp.includes("'Configured ✓'"), 'write-only secret status UI missing');
+  assert(controlHtml.includes('API Clients') && controlHtml.includes('/v1/audio/speech'), 'generic API client UI or TTS endpoint missing');
+  assert(windowsInstaller.includes('start-opencode-desktop.ps1') === false, 'desktop installer still launches OpenCode');
+  assert(windowsInstaller.includes("$shortcutName = 'Yorumina Sidecar.lnk'"), 'generic desktop shortcut missing');
+  assert(openCodeConfig.provider?.gb10?.models?.['gb10-private-llm']?.limit?.context === 131072, 'OpenCode context limit is stale');
+  assert(openCodeConfig.provider?.gb10?.models?.['gb10-private-llm']?.limit?.output === 32768, 'OpenCode output limit is stale');
   assert(packageJson.scripts?.check === 'node scripts/policy-check.mjs', 'npm check script changed');
   assert(packageJson.scripts?.smoke === 'node scripts/smoke-test.mjs', 'npm smoke script changed');
   assert(packageJson.scripts?.control === 'node --env-file=.env.local control-panel/server.mjs', 'npm control script missing');

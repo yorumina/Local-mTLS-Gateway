@@ -75,6 +75,13 @@ function createMockGateway() {
       return;
     }
 
+    if (request.url === '/v1/audio/speech' && request.method === 'POST') {
+      const audio = Buffer.from([0x52, 0x49, 0x46, 0x46, 0x04, 0x00, 0x00, 0x00, 0x57, 0x41, 0x56, 0x45]);
+      response.writeHead(200, { 'content-type': 'audio/wav', 'content-length': audio.length });
+      response.end(audio);
+      return;
+    }
+
     response.writeHead(404, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ error: 'not found' }));
   });
@@ -128,6 +135,7 @@ async function request(port, route, { method = 'GET', key = sidecarKey, body, he
         status: response.statusCode,
         headers: { get: (name) => response.headers[String(name).toLowerCase()] ?? null },
         body: Buffer.concat(chunks).toString('utf8'),
+        rawBody: Buffer.concat(chunks),
       }));
     });
     outgoing.once('error', reject);
@@ -212,6 +220,19 @@ async function run() {
   const responseBody = JSON.stringify({ model: 'Qwen3.6-smoke', input: 'ping' });
   const responsesApi = await request(sidecarPort, '/v1/responses', { method: 'POST', body: responseBody });
   assert(responsesApi.status === 200 && responsesApi.body.includes('resp-smoke'), 'Responses API was not proxied');
+
+  const speechBody = JSON.stringify({ model: 'nyako-tts', input: 'hello', voice: 'VoiceDesign', response_format: 'wav' });
+  const speech = await request(sidecarPort, '/v1/audio/speech', {
+    method: 'POST',
+    body: speechBody,
+    headers: { accept: 'audio/wav' },
+  });
+  assert(speech.status === 200, 'TTS response was not proxied');
+  assert(speech.headers.get('content-type') === 'audio/wav', 'TTS content type was not preserved');
+  assert(speech.rawBody.subarray(0, 4).toString('ascii') === 'RIFF', 'TTS binary body was not preserved');
+
+  const deniedAudioRoute = await request(sidecarPort, '/v1/audio/transcriptions', { method: 'POST', body: '{}' });
+  assert(deniedAudioRoute.status === 404, 'unlisted audio route should be rejected');
 
   const streamBody = JSON.stringify({ model: 'Qwen3.6-smoke', messages: [{ role: 'user', content: 'stream' }], stream: true });
   const stream = await request(sidecarPort, '/v1/chat/completions', {

@@ -9,7 +9,7 @@
 - MUST NOT 將 listener 綁到 `0.0.0.0`、區網 IP、公開介面或 IPv6 wildcard；此 sidecar 只能監聽 `127.0.0.1`。
 - MUST NOT 關閉上游 TLS 憑證驗證、接受 HTTP 上游、加入 `NODE_TLS_REJECT_UNAUTHORIZED=0`，或以 insecure fallback 取代 mTLS。
 - MUST NOT 把 client certificate/private key 複製進本資料夾或改寫既有憑證；只接受環境變數指向的外部檔案。
-- MUST NOT 擴大代理路由、允許任意 URL、代理任意 HTTP method，或把 sidecar 變成通用 open proxy。
+- MUST NOT 超出本檔明確列出的 API allowlist、允許任意 URL、代理任意 HTTP method，或把 sidecar 變成通用 open proxy。
 - MUST NOT 執行部署、DNS、Cloudflare、gateway、llama.cpp、遠端憑證或防火牆變更；本資料夾只負責本機 sidecar。
 
 違反任何一項時，立即停止執行並說明哪一項阻止了工作。
@@ -18,13 +18,13 @@
 
 資料流必須保持：
 
-`OpenCode (OpenAI-compatible) -> 127.0.0.1:8787 -> HTTPS + existing client certificate -> https://llm.yorumina.com -> gateway -> llama.cpp/Qwen3.6`
+`Local API clients -> 127.0.0.1:8787 -> HTTPS + existing client certificate -> https://llm.yorumina.com -> authenticated text/TTS services`
 
-- 本機入口預設且強制為 `http://127.0.0.1:8787`；OpenCode 的 base URL 應指向 `http://127.0.0.1:8787/v1`。
+- 本機入口預設且強制為 `http://127.0.0.1:8787`；OpenAI-compatible clients 的 base URL 應指向 `http://127.0.0.1:8787/v1`。
 - 每個代理路由都必須驗證 `Authorization: Bearer <SIDECAR_API_KEY>`；缺少或不相等就回 `401`，不得匿名 proxy。
 - 上游預設為 `https://llm.yorumina.com`，正式模式必須是 HTTPS，且 Node TLS options 必須明確保留 `rejectUnauthorized: true`。
 - 正式模式必須提供 PEM client cert + private key，或 PFX identity；可選 private CA 只能透過 `MTLS_CA_FILE` 加入。
-- 只允許 `/v1/models`、`/v1/chat/completions`、`/v1/completions`、`/v1/responses`、`/v1/embeddings` 的必要 method。
+- 只允許 `/v1/models`、`/v1/chat/completions`、`/v1/completions`、`/v1/responses`、`/v1/embeddings` 與 `/v1/audio/speech` 的必要 method。`/v1/audio/speech` 只允許 `POST`，不得因此開放其他 audio 或檔案路由。
 - 不得把 inbound 的自訂 header、cookie、origin、forwarded-for 或 request body 寫入 log；只可轉送明確列出的相容 API headers。
 - upstream API key 若另設 `UPSTREAM_API_KEY`，必須優先使用它；未設定時才可轉送已驗證的 inbound bearer token。
 
