@@ -1,6 +1,6 @@
 # AGENTS.md — 強制工作契約
 
-本檔是 `opencode-mtls-sidecar` 的強制規範。任何 agent、開發者或自動化程序在本資料夾內讀取、修改、執行或驗證檔案時，MUST 遵守以下條款。若需求與本檔衝突，先停止並回報衝突，不得自行放寬安全邊界。
+本檔是 `Local mTLS Gateway` 的強制規範。任何 agent、開發者或自動化程序在本資料夾內讀取、修改、執行或驗證檔案時，MUST 遵守以下條款。若需求與本檔衝突，先停止並回報衝突，不得自行放寬安全邊界。
 
 ## 0. 不可違反的停止條件
 
@@ -57,3 +57,34 @@
 - 套用失敗必須回復上一版安全設定與 secret 檔案；不得留下半套用狀態。
 - Control Panel 測試只能使用暫存目錄與假 secret，不得讀取真實 `.env.local`。
 - `npm run smoke` 只代表 loopback mock path。只有獨立執行真實 upstream diagnostic 成功時，才可回報遠端 HTTPS/mTLS 可達；仍不得將其擴大解讀為 Qwen 回答品質驗證。
+
+<!-- BEGIN SHARED MULTI-MODEL POLICY -->
+
+## Long pure waits
+
+- If the next step would be a long pure wait during which the model has no useful work to perform, pause the wait and return the current status, the evidence already collected, and the exact resume condition.
+- Do not busy-poll, repeatedly sleep, or keep a submodel occupied only to wait. Continue only when new work or a bounded status check is available.
+
+## Available model pool
+
+Only models that are currently available may receive work.
+
+- `gpt-5.6-sol` with `medium` reasoning: primary controller and final integrator.
+- `gpt-5.6-luna` with `max` reasoning: fast bounded worker.
+- Local `Qwen3.6 35B-A3B` with the highest supported reasoning/thinking setting (`max`): OpenAI-compatible endpoint `http://127.0.0.1:8787/v1`, currently reported model id `(LocalGB10)Qwen3.6_Q8_K_P_Uncensored`.
+- Availability snapshot (2026-08-23, Asia/Taipei): `/readyz` returned `ok`, `/v1/models` returned HTTP 200 with the model id above, and a minimal chat completion returned HTTP 200 with `AVAILABLE`. Recheck before each new delegation run.
+- Local model startup entry: `C:\Users\eason\OneDrive\文件\project\opencode-mtls-sidecar\run.ps1`.
+- Before assigning work to the local model, verify `GET /readyz`, authenticated `GET /v1/models`, and a minimal inference request. Include it in the pool only when the checks succeed and the inference returns a usable completion. If any check fails, mark it unavailable for that run and continue with the available Codex models.
+- Never expose API keys, certificates, passphrases, or other secrets while checking or invoking the local endpoint.
+
+## Work allocation
+
+- Sol owns task decomposition, architecture, ambiguous or high-risk decisions, complex debugging, security-sensitive changes, reconciliation of conflicting findings, final review, and the user-facing result.
+- Luna with `max` reasoning handles clearly scoped independent work such as repository discovery, targeted code reading, routine implementation, focused tests, documentation consistency checks, and first-pass diff review.
+- Local Qwen is a full worker that may perform scoped implementation, file edits, tests, documentation, privacy-sensitive local analysis, large-context summarization, Traditional Chinese drafting or translation, brainstorming, and independent review. Give it explicit task boundaries, owned files, and acceptance criteria before writable work; its changes require the same verification and integration review as every other worker.
+- Prefer parallel delegation only for independent work. Never let two models edit the same file concurrently.
+- Every worker must return concrete evidence: file paths, relevant lines or symbols, commands run, and unresolved uncertainty. Sol must verify material claims against repository state, tests, or runtime output before integrating them.
+- Tests and observed runtime behavior outrank model opinions. A worker result is not completion evidence by itself.
+- Trivial tasks may stay on Sol when delegation would add more coordination than value.
+
+<!-- END SHARED MULTI-MODEL POLICY -->

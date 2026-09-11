@@ -2,6 +2,7 @@
 .env.*
 !.env.example
 .sidecar.local.json
+.sidecar.local.json.*.tmp
 *.pem
 *.key
 *.p12
@@ -10,3 +11,16 @@ certs/
 logs/
 node_modules/
 npm-debug.log*
+
+# Local test/runtime artifacts
+.smoke-test-settings-*.json
+coverage/
+dist/
+tmp/
+*.log
+
+# OS/editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

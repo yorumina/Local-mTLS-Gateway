@@ -1,6 +1,6 @@
-# Yorumina mTLS AI sidecar
+# Local mTLS Gateway
 
-這個資料夾提供一個 Windows/Node.js 本機 sidecar，讓 OpenCode 與其他本機專案透過 loopback 使用 Yorumina 的 Chat、Models 與 TTS API，再由 sidecar 帶著既有 client certificate 連到受 Cloudflare mTLS 保護的服務。
+這個專案提供一個 Windows/Node.js 本機 sidecar，讓 OpenCode 與其他本機專案透過 loopback 使用 OpenAI-compatible 的 Chat、Models 與 TTS API，再由 sidecar 帶著既有 client certificate 連到受 mTLS 保護的 HTTPS 上游。預設上游是 Yorumina，但可以由本機設定覆寫。
 
 ## 固定資料流
 
@@ -20,7 +20,7 @@ Local API clients
 管理介面是獨立 process，不會擴大 proxy 的路由：
 
 ```text
-Browser -> http://127.0.0.1:8790 -> Yorumina Sidecar Control
+Browser -> http://127.0.0.1:8790 -> Local mTLS Gateway Control
                                       -> safe settings / diagnostics
                                       -> managed sidecar lifecycle
 ```
@@ -65,7 +65,13 @@ http://127.0.0.1:8787/v1
 
 把 client 的 API key 設成與 `SIDECAR_API_KEY` 相同的本機值。這個值只是 sidecar 的 inbound gate，不是本專案內保存的 OpenAI Platform key。
 
-OpenCode 的範例設定保留在 `opencode.json`。目前宣告 `131072` input context 與 `32768` output；output 是 OpenCode 預留的最大生成量，不等於 llama.cpp 的 thinking budget。實際 thinking budget 由上游 llama.cpp 啟動或每次請求的 `thinking_budget_tokens` 控制。
+OpenCode 的範例設定保留在 `opencode.json`。目前宣告 `131072` 總 context、`98304` input 與 `32768` output；output 是 OpenCode 預留的最大生成量，不等於 llama.cpp 的 thinking budget。實際 thinking budget 由上游 llama.cpp 啟動或每次請求的 `thinking_budget_tokens` 控制。對 OpenCode 相容性，sidecar 會在呼叫端未明確提供 `thinking_budget_tokens` 時，把 `reasoning_effort` 映射為 `none/off = 0`、`low = 512`、`medium = 2048`、`high = 8192`、`max = 32768`，並同步設定 `chat_template_kwargs.enable_thinking`；未提供 effort 的 default 模式保持模型預設。
+
+範例啟用自動壓縮與工具輸出清理，並預留 `20000` tokens。OpenCode 1.18.15 在有 `limit.input` 時，以 `input - reserved` 判斷是否需要壓縮，因此這份設定約在已回報的總用量達 `78304` tokens 時觸發，替後續工具結果與摘要留空間。從其他專案（例如 Open Design）啟動時，必須在實際載入的全域設定中，對每個會使用的 GB10 模型別名設定相同上限；本資料夾的設定不會自動套用至其他專案。缺少 context 上限會讓此版本跳過自動壓縮判斷。
+
+對三個文字生成路由的 HTTP 400、未壓縮 JSON 錯誤，sidecar 會將 `context_budget_exceeded` 補為 OpenCode 可識別的 `context_length_exceeded` 錯誤碼，保留 HTTP 400，讓 client 有機會執行壓縮恢復。辨識最多緩衝 64 KiB，其他錯誤、大型回應、成功 SSE 與音訊維持原樣。這項相容處理不會自行重送請求，也不保證已超過摘要可處理範圍的舊對話能恢復。
+
+可用 `npm run smoke -- --opencode-bin "<OpenCode executable 的絕對路徑>"` 執行額外的真實 CLI／loopback mock 整合測試。測試使用暫存設定、假 key 與隔離資料庫，對照缺少上限、提前壓縮及超限後恢復。OpenCode 1.18.15 在超限後即使已完成摘要並繼續回答，CLI 仍會保留先前的 `ContextOverflowError` 事件並退出 `1`；依賴退出碼的呼叫端仍可能顯示失敗。提前壓縮的路徑可正常退出 `0`。這些測試不會呼叫真實 GB10。
 
 若 gateway 需要另一個 bearer token，設定 `UPSTREAM_API_KEY`；sidecar 會使用它向上游認證，而不會把本機 inbound token 傳給上游。若 `UPSTREAM_API_KEY` 留白，已驗證的 inbound bearer token 才會被轉送給 gateway。
 
@@ -97,9 +103,9 @@ Request body 會以原始 bytes 轉送，sidecar 不會改寫 `model`、`input`�
 ```json
 {
   "model": "nyako-tts",
-  "input": "要講的內容",
+  "input": "<要轉成語音的文字>",
   "voice": "nyako",
-  "instructions": "這一句的情緒和說話方式",
+  "instructions": "<可選的語氣描述>",
   "response_format": "mp3",
   "speed": 1.0,
   "stream_format": "audio"
@@ -107,6 +113,8 @@ Request body 會以原始 bytes 轉送，sidecar 不會改寫 `model`、`input`�
 ```
 
 真實 API key 不要寫入 source、README 或 URL。
+
+文件中的 Chat/TTS body 只是格式示例，不是啟動時會自動送出的預設輸入；sidecar 不會自行發送任何使用者內容。
 
 ## 驗證
 
@@ -119,7 +127,7 @@ npm run smoke
 
 smoke test 只會啟動 loopback mock gateway，使用假 key，並以 `SIDECAR_TEST_MODE=true` 暫時跳過真實 client identity。它能驗證 API-key gate、路由白名單、request forwarding、JSON、SSE 與 binary audio response；它不能證明 Cloudflare mTLS、遠端 gateway、Qwen3.6 或 nyako-tts 已可用。
 
-## Yorumina Sidecar Control
+## Local mTLS Gateway Control
 
 先完成 `.env.local` 的本機 secret 設定，再執行 `npm run control`，然後開啟 `http://127.0.0.1:8790`。介面包含 Overview、Connection、mTLS Identity、Limits、API Clients、Diagnostics 與 Settings / About。
 
@@ -139,7 +147,7 @@ Diagnostics 將 Configuration validation、Security policy check、Local sidecar
 .\install-windows-integration.ps1
 ```
 
-它會建立目前使用者的 `Yorumina mTLS Sidecar` 登入排程，登入後在背景啟動 Control Panel 與它管理的 loopback sidecar。桌面只建立 `Yorumina Sidecar` 捷徑；點擊後啟動或開啟 Control Panel，不會自動啟動 OpenCode 或其他 client app。安裝程式會移除舊的 `OpenCode GB10` 捷徑與舊登入排程，避免重複啟動。
+它會建立目前使用者的 `Local mTLS Gateway` 登入排程，登入後在背景啟動 Control Panel 與它管理的 loopback gateway。桌面只建立 `Local mTLS Gateway` 捷徑；點擊後啟動或開啟 Control Panel，不會自動啟動 OpenCode 或其他 client app。安裝程式會移除舊的捷徑與舊登入排程，避免重複啟動。
 
 排程與捷徑都不含 API key、PFX passphrase 或憑證內容。
 

@@ -1,8 +1,8 @@
 {
-  "name": "opencode-mtls-sidecar",
+  "name": "local-mtls-gateway",
   "version": "0.1.0",
   "private": true,
-  "description": "Loopback-only Chat, Models and TTS proxy with an outbound mTLS client certificate.",
+  "description": "Loopback-only OpenAI-compatible Chat, Models and TTS proxy with outbound mTLS.",
   "type": "module",
   "engines": {
     "node": ">=20.11"

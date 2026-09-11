@@ -1,13 +1,30 @@
 import { spawn } from 'node:child_process';
 import http from 'node:http';
 import path from 'node:path';
+import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
+import { handleCompactionMock, runCompactionSmoke } from './opencode-compaction-smoke.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const sidecarKey = 'smoke-sidecar-key-12345';
 let mockServer;
 let sidecarProcess;
 const observed = [];
+const budgetError = JSON.stringify({ error: { type: 'context_budget_exceeded', message: 'mock input plus output exceeds context' } });
+const errorFixtures = {
+  budget: { body: budgetError },
+  code: { body: JSON.stringify({ error: { code: 'context_budget_exceeded' } }) },
+  chunked: { body: budgetError, chunked: true },
+  unrelated: { body: '{ "error": { "type": "invalid_request_error", "message": "invalid parameter" } }' },
+  malformed: { body: '{ "error":' },
+  large: { body: JSON.stringify({ error: { type: 'context_budget_exceeded', message: 'x'.repeat(70000) } }) },
+  largeChunked: { body: JSON.stringify({ error: { type: 'context_budget_exceeded', message: 'x'.repeat(70000) } }), chunked: true },
+  unauthorized: { body: budgetError, status: 401 },
+  rateLimit: { body: budgetError, status: 429 },
+  html: { body: budgetError, contentType: 'text/html' },
+  compressed: { body: gzipSync(budgetError), contentEncoding: 'gzip' },
+  aborted: { body: budgetError, aborted: true },
+};
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -39,6 +56,25 @@ function createMockGateway() {
       body,
     });
 
+    const fixture = errorFixtures[request.headers['x-client-request-id']];
+    if (fixture) {
+      const rawBody = Buffer.from(fixture.body);
+      response.writeHead(fixture.status ?? 400, {
+        'content-type': fixture.contentType ?? 'application/json; charset=utf-8',
+        ...(fixture.chunked ? {} : { 'content-length': rawBody.length }),
+        ...(fixture.contentEncoding ? { 'content-encoding': fixture.contentEncoding } : {}),
+        etag: '"mock-original"',
+        'last-modified': 'Sun, 06 Sep 2026 00:00:00 GMT',
+        'x-request-id': 'mock-request-id',
+      });
+      response.write(rawBody.subarray(0, 11));
+      setImmediate(() => {
+        if (fixture.aborted) response.destroy();
+        else response.end(rawBody.subarray(11));
+      });
+      return;
+    }
+
     if (request.url === '/v1/models' && request.method === 'GET') {
       const payload = JSON.stringify({ object: 'list', data: [{ id: 'Qwen3.6-smoke', object: 'model' }] });
       response.writeHead(200, { 'content-type': 'application/json', 'content-length': Buffer.byteLength(payload) });
@@ -48,6 +84,7 @@ function createMockGateway() {
 
     if (request.url === '/v1/chat/completions' && request.method === 'POST') {
       const parsed = JSON.parse(body || '{}');
+      if (handleCompactionMock(parsed, response)) return;
       if (parsed.stream === true) {
         response.writeHead(200, {
           'cache-control': 'no-cache',
@@ -131,6 +168,7 @@ async function request(port, route, { method = 'GET', key = sidecarKey, body, he
     const outgoing = http.request({ hostname: '127.0.0.1', port, path: route, method, headers: requestHeaders }, (response) => {
       const chunks = [];
       response.on('data', (chunk) => chunks.push(chunk));
+      response.once('error', reject);
       response.once('end', () => resolve({
         status: response.statusCode,
         headers: { get: (name) => response.headers[String(name).toLowerCase()] ?? null },
@@ -139,6 +177,7 @@ async function request(port, route, { method = 'GET', key = sidecarKey, body, he
       }));
     });
     outgoing.once('error', reject);
+    outgoing.setTimeout(10000, () => outgoing.destroy(new Error('mock request timed out')));
     outgoing.end(body);
   });
 }
@@ -176,6 +215,7 @@ async function run() {
       SIDECAR_TEST_MODE: 'true',
       SIDECAR_SETTINGS_FILE: path.join(root, '.smoke-test-settings-do-not-create.json'),
       UPSTREAM_BASE_URL: `http://127.0.0.1:${gatewayPort}`,
+      UPSTREAM_API_KEY: '',
       UPSTREAM_TIMEOUT_MS: '5000',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -217,6 +257,35 @@ async function run() {
   assert(completion.status === 200 && completion.body.includes('chatcmpl-smoke'), 'JSON completion was not proxied');
   assert(observed.at(-1)?.body === completionBody, 'request body was changed unexpectedly');
 
+  const reasoningBudgets = {
+    none: 0,
+    low: 512,
+    medium: 2048,
+    high: 8192,
+    max: 32768,
+  };
+  for (const [effort, expectedBudget] of Object.entries(reasoningBudgets)) {
+    const reasoningBody = JSON.stringify({
+      model: 'Qwen3.6-smoke',
+      messages: [{ role: 'user', content: effort }],
+      reasoning_effort: effort,
+    });
+    const reasoning = await request(sidecarPort, '/v1/chat/completions', { method: 'POST', body: reasoningBody });
+    assert(reasoning.status === 200, `${effort} reasoning request was not proxied`);
+    const forwarded = JSON.parse(observed.at(-1)?.body ?? '{}');
+    assert(forwarded.thinking_budget_tokens === expectedBudget, `${effort} reasoning budget was not mapped`);
+    assert(forwarded.chat_template_kwargs?.enable_thinking === (expectedBudget > 0), `${effort} thinking toggle was not mapped`);
+  }
+
+  const explicitBudgetBody = JSON.stringify({
+    model: 'Qwen3.6-smoke',
+    messages: [{ role: 'user', content: 'explicit' }],
+    reasoning_effort: 'low',
+    thinking_budget_tokens: 1234,
+  });
+  await request(sidecarPort, '/v1/chat/completions', { method: 'POST', body: explicitBudgetBody });
+  assert(observed.at(-1)?.body === explicitBudgetBody, 'explicit thinking budget should take precedence');
+
   const responseBody = JSON.stringify({ model: 'Qwen3.6-smoke', input: 'ping' });
   const responsesApi = await request(sidecarPort, '/v1/responses', { method: 'POST', body: responseBody });
   assert(responsesApi.status === 200 && responsesApi.body.includes('resp-smoke'), 'Responses API was not proxied');
@@ -251,11 +320,48 @@ async function run() {
   });
   assert(stream.status === 200 && stream.body.includes('data: [DONE]'), 'SSE completion was not proxied');
 
+  for (const route of ['/v1/chat/completions', '/v1/completions', '/v1/responses']) {
+    for (const name of ['budget', 'code', 'chunked']) {
+      const result = await request(sidecarPort, route, {
+        method: 'POST', body: streamBody,
+        headers: { 'x-client-request-id': name, origin: 'http://localhost:5173' },
+      });
+      assert(result.status === 400, `${route}/${name}: context overflow must retain HTTP 400`);
+      assert(JSON.parse(result.body).error.code === 'context_length_exceeded', `${route}/${name}: OpenCode overflow code missing`);
+      assert(Number(result.headers.get('content-length')) === result.rawBody.length, `${route}/${name}: stale content length`);
+      assert(result.headers.get('etag') === null && result.headers.get('last-modified') === null, `${route}/${name}: stale validators`);
+      assert(result.headers.get('x-request-id') === 'mock-request-id', `${route}/${name}: request id lost`);
+      assert(result.headers.get('access-control-allow-origin') === 'http://localhost:5173', `${route}/${name}: CORS lost`);
+    }
+  }
+  for (const name of ['unrelated', 'malformed', 'large', 'largeChunked', 'unauthorized', 'rateLimit', 'html', 'compressed']) {
+    const result = await request(sidecarPort, '/v1/chat/completions', {
+      method: 'POST', body: completionBody, headers: { 'x-client-request-id': name },
+    });
+    assert(result.status === (errorFixtures[name].status ?? 400), `${name}: status changed`);
+    assert(result.rawBody.equals(Buffer.from(errorFixtures[name].body)), `${name}: nonmatching error must pass through byte-for-byte`);
+    assert(result.headers.get('etag') === '"mock-original"', `${name}: original headers changed`);
+  }
+  const speechError = await request(sidecarPort, '/v1/audio/speech', {
+    method: 'POST', body: speechBody, headers: { 'x-client-request-id': 'budget' },
+  });
+  assert(speechError.body === budgetError, 'audio errors must not be normalized');
+  const abortedError = await request(sidecarPort, '/v1/chat/completions', {
+    method: 'POST', body: completionBody, headers: { 'x-client-request-id': 'aborted' },
+  }).then(() => false, () => true);
+  assert(abortedError, 'truncated error response must close instead of returning a complete error');
+  assert((await request(sidecarPort, '/healthz', { key: null })).status === 200, 'sidecar must survive upstream abort');
+
   const deniedRoute = await request(sidecarPort, '/admin');
   assert(deniedRoute.status === 404, 'unlisted route should be rejected');
 
   const queryCredential = await request(sidecarPort, '/v1/models?api_key=leak');
   assert(queryCredential.status === 400, 'credential query string should be rejected');
+
+  const executableIndex = process.argv.indexOf('--opencode-bin');
+  if (executableIndex !== -1) {
+    await runCompactionSmoke({ executable: process.argv[executableIndex + 1], sidecarPort, sidecarKey, root });
+  }
 
   console.log('smoke-test: passed (loopback mock only; no real mTLS was used)');
 }

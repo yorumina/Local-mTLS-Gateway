@@ -1,9 +1,11 @@
 import crypto from 'node:crypto';
 import http from 'node:http';
 import https from 'node:https';
+import { Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { ConfigError, loadConfig } from './config.mjs';
 
-const SERVICE_NAME = 'yorumina-mtls-sidecar';
+const SERVICE_NAME = 'local-mtls-gateway';
 const ALLOWED_ROUTES = new Map([
   ['/v1/models', new Set(['GET'])],
   ['/v1/chat/completions', new Set(['POST'])],
@@ -38,6 +40,14 @@ const FORWARD_REQUEST_HEADERS = [
 ];
 const CORS_ALLOWED_HEADERS = 'Authorization, Content-Type, OpenAI-Beta, X-Client-Request-Id';
 const CORS_ALLOWED_METHODS = 'GET, POST, OPTIONS';
+const REASONING_BUDGETS = new Map([
+  ['none', 0],
+  ['off', 0],
+  ['low', 512],
+  ['medium', 2048],
+  ['high', 8192],
+  ['max', 32768],
+]);
 
 class HttpError extends Error {
   constructor(statusCode, code, message) {
@@ -210,6 +220,39 @@ function buildRequestHeaders(request, body, upstreamAuthorization) {
   return headers;
 }
 
+function applyReasoningBudget(requestUrl, body) {
+  if (body.length === 0) return body;
+  const path = new URL(requestUrl, 'http://127.0.0.1').pathname;
+  if (path !== '/v1/chat/completions' && path !== '/v1/responses') return body;
+
+  let payload;
+  try {
+    payload = JSON.parse(body.toString('utf8'));
+  } catch {
+    return body;
+  }
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return body;
+  if (Object.hasOwn(payload, 'thinking_budget_tokens')) return body;
+
+  const effort = payload.reasoning_effort
+    ?? payload.reasoningEffort
+    ?? (payload.reasoning && typeof payload.reasoning === 'object' ? payload.reasoning.effort : undefined);
+  if (typeof effort !== 'string') return body;
+  const budget = REASONING_BUDGETS.get(effort.toLowerCase());
+  if (budget === undefined) return body;
+
+  return Buffer.from(JSON.stringify({
+    ...payload,
+    thinking_budget_tokens: budget,
+    chat_template_kwargs: {
+      ...(payload.chat_template_kwargs && typeof payload.chat_template_kwargs === 'object'
+        ? payload.chat_template_kwargs
+        : {}),
+      enable_thinking: budget > 0,
+    },
+  }));
+}
+
 function requestUpstream(url, method, headers, body, signal) {
   const transport = url.protocol === 'https:' ? https : http;
   const options = {
@@ -284,8 +327,60 @@ function pipeResponse(upstreamResponse, response) {
   });
 }
 
+function needsContextErrorCompatibility(upstreamResponse, requestUrl) {
+  const pathname = new URL(requestUrl, 'http://127.0.0.1').pathname;
+  return ['/v1/chat/completions', '/v1/completions', '/v1/responses'].includes(pathname)
+    && upstreamResponse.statusCode === 400
+    && /^application\/json(?:\s*;|$)/i.test(upstreamResponse.headers['content-type'] ?? '')
+    && (!upstreamResponse.headers['content-encoding'] || upstreamResponse.headers['content-encoding'] === 'identity');
+}
+
+function contextErrorCompatibility(response) {
+  // Inspect only small JSON failures. Successful SSE/audio keeps its streaming path.
+  const maxBytes = 64 * 1024;
+  let chunks = [];
+  let size = 0;
+  let passthrough = false;
+  return new Transform({
+    transform(chunk, encoding, callback) {
+      if (passthrough) return callback(null, chunk);
+      size += chunk.length;
+      if (size > maxBytes) {
+        passthrough = true;
+        for (const buffered of chunks) this.push(buffered);
+        chunks = [];
+        return callback(null, chunk);
+      }
+      chunks.push(chunk);
+      callback();
+    },
+    flush(callback) {
+      if (passthrough) return callback();
+      let body = Buffer.concat(chunks, size);
+      let payload;
+      try { payload = JSON.parse(body.toString('utf8')); } catch { /* Preserve non-JSON bytes. */ }
+      if (payload?.error?.type === 'context_budget_exceeded' || payload?.error?.code === 'context_budget_exceeded') {
+        // OpenCode recognizes this standard code and can recover by compacting.
+        body = Buffer.from(JSON.stringify({ error: {
+          type: 'context_budget_exceeded',
+          code: 'context_length_exceeded',
+          message: 'This request exceeds the model context window. Compact the conversation or reduce the input.',
+        } }));
+        response.setHeader('content-length', body.length);
+        response.setHeader('content-type', 'application/json; charset=utf-8');
+        response.setHeader('cache-control', 'no-store');
+        response.removeHeader('etag');
+        response.removeHeader('last-modified');
+        response.removeHeader('content-encoding');
+      }
+      callback(null, body);
+    },
+  });
+}
+
 async function proxyRequest(request, response, requestUrl, inboundToken) {
-  const body = request.method === 'POST' ? await readBody(request) : Buffer.alloc(0);
+  const incomingBody = request.method === 'POST' ? await readBody(request) : Buffer.alloc(0);
+  const body = applyReasoningBudget(requestUrl, incomingBody);
   const targetUrl = upstreamPath(config.upstreamBaseUrl, requestUrl);
   const upstreamToken = config.upstreamApiKey ?? inboundToken;
   const headers = buildRequestHeaders(request, body, `Bearer ${upstreamToken}`);
@@ -301,8 +396,13 @@ async function proxyRequest(request, response, requestUrl, inboundToken) {
       return;
     }
     forwardResponseHeaders(upstreamResponse, response);
-    response.writeHead(upstreamResponse.statusCode ?? 502);
-    await pipeResponse(upstreamResponse, response);
+    response.statusCode = upstreamResponse.statusCode ?? 502;
+    if (needsContextErrorCompatibility(upstreamResponse, requestUrl)) {
+      await pipeline(upstreamResponse, contextErrorCompatibility(response), response);
+    } else {
+      response.writeHead(response.statusCode);
+      await pipeResponse(upstreamResponse, response);
+    }
   } finally {
     request.off('aborted', abortForClient);
     response.off('close', abortForClient);

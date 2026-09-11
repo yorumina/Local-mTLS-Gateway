@@ -96,9 +96,11 @@ try {
   assert(controlHtml.includes('SIDECAR_API_KEY') && controlHtml.includes('Write-only') && controlApp.includes("'Configured ✓'"), 'write-only secret status UI missing');
   assert(controlHtml.includes('API Clients') && controlHtml.includes('/v1/audio/speech'), 'generic API client UI or TTS endpoint missing');
   assert(windowsInstaller.includes('start-opencode-desktop.ps1') === false, 'desktop installer still launches OpenCode');
-  assert(windowsInstaller.includes("$shortcutName = 'Yorumina Sidecar.lnk'"), 'generic desktop shortcut missing');
+  assert(windowsInstaller.includes("$shortcutName = 'Local mTLS Gateway.lnk'"), 'generic desktop shortcut missing');
   assert(openCodeConfig.provider?.gb10?.models?.['gb10-private-llm']?.limit?.context === 131072, 'OpenCode context limit is stale');
   assert(openCodeConfig.provider?.gb10?.models?.['gb10-private-llm']?.limit?.output === 32768, 'OpenCode output limit is stale');
+  assert(openCodeConfig.provider?.gb10?.models?.['gb10-private-llm']?.limit?.input === 98304, 'OpenCode input headroom is missing');
+  assert(openCodeConfig.compaction?.auto === true && openCodeConfig.compaction?.reserved === 20000, 'OpenCode automatic compaction headroom is missing');
   assert(packageJson.scripts?.check === 'node scripts/policy-check.mjs', 'npm check script changed');
   assert(packageJson.scripts?.smoke === 'node scripts/smoke-test.mjs', 'npm smoke script changed');
   assert(packageJson.scripts?.control === 'node --env-file=.env.local control-panel/server.mjs', 'npm control script missing');

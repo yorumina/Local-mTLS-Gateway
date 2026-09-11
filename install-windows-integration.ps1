@@ -3,9 +3,9 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '.')).Path
 $runScript = Join-Path $projectRoot 'run-control-panel.ps1'
 $controlPanelLaunchScript = Join-Path $projectRoot 'open-control-panel.ps1'
-$taskName = 'Yorumina mTLS Sidecar'
+$taskName = 'Local mTLS Gateway'
 $legacyTaskName = 'OpenCode mTLS Sidecar'
-$shortcutName = 'Yorumina Sidecar.lnk'
+$shortcutName = 'Local mTLS Gateway.lnk'
 $legacyShortcutNames = @('OpenCode GB10.lnk', 'Yorumina Sidecar Control.lnk', 'OpenCode mTLS Sidecar.lnk', 'OpenCode mTLS Sidecar Control Panel.lnk')
 
 foreach ($requiredPath in @($runScript, $controlPanelLaunchScript)) {
@@ -39,7 +39,7 @@ $taskSettings = New-ScheduledTaskSettingsSet `
 
 Register-ScheduledTask `
   -TaskName $taskName `
-  -Description 'Starts the loopback-only Yorumina Control Panel and managed multi-service mTLS sidecar after user logon.' `
+  -Description 'Starts the loopback-only mTLS Control Panel and managed multi-service sidecar after user logon.' `
   -Action $taskAction `
   -Trigger $taskTrigger `
   -Principal $taskPrincipal `
@@ -55,7 +55,7 @@ $shortcut.TargetPath = $powerShellExe
 $shortcut.Arguments = "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File $quotedControlPanelScript"
 $shortcut.WorkingDirectory = $projectRoot
 $shortcut.IconLocation = "$powerShellExe,0"
-$shortcut.Description = 'Start or open the local Yorumina mTLS sidecar control panel'
+$shortcut.Description = 'Start or open the local mTLS gateway control panel'
 $shortcut.Save()
 
 foreach ($legacyShortcutName in $legacyShortcutNames) {
