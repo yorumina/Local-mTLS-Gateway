@@ -151,6 +151,33 @@ Diagnostics 將 Configuration validation、Security policy check、Local sidecar
 
 排程與捷徑都不含 API key、PFX passphrase 或憑證內容。
 
+## OpenCode mTLS Sidecar Control Panel
+
+先完成 `.env.local` 的本機 secret 設定，再執行 `npm run control`，然後開啟 `http://127.0.0.1:8790`。介面包含 Overview、Connection、mTLS Identity、Limits、OpenCode、Diagnostics 與 Settings / About。
+
+介面可以修改上游 HTTPS URL、本機 proxy port、request body 上限、upstream timeout、PEM/PFX identity 類型與外部檔案路徑，以及 OpenCode provider/model 顯示設定。
+
+非敏感設定寫入 gitignored 的 `.sidecar.local.json`。`SIDECAR_API_KEY`、`UPSTREAM_API_KEY` 與 `MTLS_PASSPHRASE` 仍保存在 environment / `.env.local`，介面只顯示 `Configured` 或 `Not configured`；更新 secret 是 write-only，瀏覽器、diff、log 與 API response 都不會取得原值。
+
+`Apply & Restart` 會依序驗證設定、顯示安全 diff、寫入設定、執行 policy check、重新啟動受管理的 sidecar，再檢查 `/healthz`。若目前的 sidecar 不是由 Control Panel 啟動，介面不會強制終止它，而會明確顯示需要重新啟動。套用失敗會回復前一版設定。
+
+Diagnostics 將 Configuration validation、Security policy check、Local sidecar health、loopback mock smoke test 與 real upstream HTTPS / mTLS diagnostic 分開顯示。Smoke test 不代表 Cloudflare mTLS、真實 gateway 或 Qwen 已驗證；只有 real upstream diagnostic 實際成功時，才能表示該次遠端 HTTPS/mTLS 連線成功。
+
+## Windows 登入自動啟動與桌面捷徑
+
+執行一次：
+
+```powershell
+.\install-windows-integration.ps1
+```
+
+它會建立目前使用者的 `OpenCode mTLS Sidecar` 登入排程，登入後在背景啟動 Control Panel 與它管理的 loopback sidecar。桌面會建立：
+
+- `OpenCode mTLS Sidecar`：確認 sidecar 正常後按需開啟 OpenCode Desktop。
+- `OpenCode mTLS Sidecar Control Panel`：按一下即可啟動或開啟 `http://127.0.0.1:8790`。
+
+OpenCode Desktop 不會隨登入自動開啟。排程與捷徑都不含 API key、PFX passphrase 或憑證內容。
+
 ## 安全界線
 
 - 不支援 HTTP 上游，除非是 smoke test 明確啟用的 loopback mock。
